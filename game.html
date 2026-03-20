@@ -345,15 +345,17 @@ function waitForAssetBase(timeout){
   });
 }
 
-// ── Probe a known asset to detect Android URL failures before Phaser starts ──
+// ── Probe a known asset using Image — same method Phaser uses ──
 let _assetProbeOk = false;
-async function probeAssets(){
-  const testUrl = ASSET_BASE + '/assets/Sprites/Tiles/terrain_grass_block_top.png';
-  try{
-    const r = await fetch(testUrl, {method:'HEAD', cache:'no-cache'});
-    _assetProbeOk = r.ok;
-  }catch(e){ _assetProbeOk = false; }
-  return _assetProbeOk;
+function probeAssets(){
+  return new Promise(resolve => {
+    const img = new Image();
+    // Don't set crossOrigin — matches how mobile Phaser CANVAS loads images
+    const testUrl = ASSET_BASE + '/assets/Sprites/Tiles/terrain_grass_block_top.png';
+    img.onload  = () => { _assetProbeOk = true;  resolve(true);  };
+    img.onerror = () => { _assetProbeOk = false; resolve(false); };
+    img.src = testUrl + '?_=' + Date.now(); // bust cache
+  });
 }
 
 function applyAssetFix(){
@@ -801,8 +803,9 @@ function _launchPhaser(){
     // Prevent Phaser from calling preventDefault() on all touch events so our
     // overlay buttons still receive pointer/touch events on mobile.
     input:{touch:{capture:false}},
-    // Android WebView needs these for image loading
-    loader:{crossOrigin:'anonymous'},
+    // crossOrigin:'anonymous' is only needed for WebGL (tainted-canvas prevention).
+    // On mobile we use CANVAS renderer, so omitting it avoids CORS failures entirely.
+    loader: isMobile ? {} : {crossOrigin:'anonymous'},
   };
   gameInst=new Phaser.Game(cfg);
 }
