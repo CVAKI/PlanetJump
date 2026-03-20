@@ -84,7 +84,8 @@ select option{background:#302b63;color:#fff;}
 .cbtn{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.14);
   border:2px solid rgba(255,255,255,.28);display:flex;align-items:center;justify-content:center;
   font-size:22px;cursor:pointer;-webkit-tap-highlight-color:transparent;
-  transition:background .1s,border-color .1s;user-select:none;-webkit-user-select:none;}
+  transition:background .1s,border-color .1s;user-select:none;-webkit-user-select:none;
+  touch-action:none;pointer-events:all;}
 .cbtn.active{background:rgba(255,215,0,.4);border-color:#ffd700;}
 .cbtn.jump-btn{width:72px;height:72px;background:rgba(255,215,0,.18);
   border-color:rgba(255,215,0,.5);font-size:26px;}
@@ -239,19 +240,9 @@ canvas{display:block;}
 <div id="settings-panel">
   <h3>⚙️ Game Settings</h3>
   <div class="srow">
-    <div class="slbl"><span>🦘 Jump Power</span><b id="jump-val">720</b></div>
-    <input class="sslider" id="jump-slider" type="range" min="300" max="1200" step="10" value="720"
-      oninput="applyJump(this.value)">
-  </div>
-  <div class="srow">
     <div class="slbl"><span>🔍 Zoom</span><b id="zoom-val">1.5×</b></div>
     <input class="sslider" id="zoom-slider" type="range" min="0.5" max="3.0" step="0.05" value="1.5"
       oninput="applyZoom(this.value)">
-  </div>
-  <div class="srow">
-    <div class="slbl"><span>🌍 Gravity</span><b id="grav-val">950</b></div>
-    <input class="sslider" id="grav-slider" type="range" min="200" max="2000" step="25" value="950"
-      oninput="applyGravity(this.value)">
   </div>
   <button class="sreset" onclick="resetSettings()">↺ Reset defaults</button>
 </div>
@@ -283,20 +274,11 @@ canvas{display:block;}
 <!-- MOBILE CONTROLS -->
 <div id="mctrl">
   <div class="ctrl-grp">
-    <div class="cbtn" id="cb-left"
-      ontouchstart="mc('left',true);event.preventDefault()"
-      ontouchend="mc('left',false);event.preventDefault()"
-      ontouchcancel="mc('left',false)">◀</div>
-    <div class="cbtn" id="cb-right"
-      ontouchstart="mc('right',true);event.preventDefault()"
-      ontouchend="mc('right',false);event.preventDefault()"
-      ontouchcancel="mc('right',false)">▶</div>
+    <div class="cbtn" id="cb-left">◀</div>
+    <div class="cbtn" id="cb-right">▶</div>
   </div>
   <div class="ctrl-grp">
-    <div class="cbtn jump-btn" id="cb-jump"
-      ontouchstart="mc('jump',true);event.preventDefault()"
-      ontouchend="mc('jump',false);event.preventDefault()"
-      ontouchcancel="mc('jump',false)">⬆</div>
+    <div class="cbtn jump-btn" id="cb-jump">⬆</div>
   </div>
 </div>
 
@@ -525,10 +507,6 @@ function toggleSettings(){
   const p=document.getElementById('settings-panel');
   p.style.display=p.style.display==='block'?'none':'block';
 }
-function applyJump(v){
-  JUMP_POWER=parseInt(v);
-  document.getElementById('jump-val').textContent=v;
-}
 function applyZoom(v){
   CAM_ZOOM=parseFloat(v);
   document.getElementById('zoom-val').textContent=parseFloat(v).toFixed(2)+'×';
@@ -537,19 +515,9 @@ function applyZoom(v){
     if(scene) scene.cameras.main.setZoom(CAM_ZOOM);
   }
 }
-function applyGravity(v){
-  GRAVITY=parseInt(v);
-  document.getElementById('grav-val').textContent=v;
-  if(gameInst){
-    const scene=gameInst.scene.getScene('GameScene');
-    if(scene) scene.physics.world.gravity.y=GRAVITY;
-  }
-}
 function resetSettings(){
-  document.getElementById('jump-slider').value=720;
   document.getElementById('zoom-slider').value=1.5;
-  document.getElementById('grav-slider').value=950;
-  applyJump(720); applyZoom(1.5); applyGravity(950);
+  applyZoom(1.5);
 }
 // Close settings when clicking outside
 document.addEventListener('click',e=>{
@@ -559,6 +527,39 @@ document.addEventListener('click',e=>{
     panel.style.display='none';
   }
 });
+
+// ── MOBILE CONTROL WIRING ──────────────────────────────────────────────────
+// Uses pointerdown/up (works in Streamlit iframes) + touch fallback.
+// stopPropagation prevents Phaser from swallowing the events.
+(function wireMobileControls(){
+  ['left','right','jump'].forEach(dir=>{
+    const el=document.getElementById('cb-'+dir);
+    if(!el) return;
+
+    // Pointer Events (most reliable in iframes on Android/iOS)
+    el.addEventListener('pointerdown', e=>{
+      e.preventDefault(); e.stopPropagation();
+      mc(dir, true);
+    },{passive:false});
+    el.addEventListener('pointerup', e=>{
+      e.preventDefault();
+      mc(dir, false);
+    },{passive:false});
+    el.addEventListener('pointercancel', ()=>mc(dir, false));
+    el.addEventListener('pointerleave',  ()=>mc(dir, false));
+
+    // Touch Events fallback (for browsers with limited Pointer Events support)
+    el.addEventListener('touchstart', e=>{
+      e.preventDefault(); e.stopPropagation();
+      mc(dir, true);
+    },{passive:false});
+    el.addEventListener('touchend', e=>{
+      e.preventDefault();
+      mc(dir, false);
+    },{passive:false});
+    el.addEventListener('touchcancel', ()=>mc(dir, false));
+  });
+})();
 
 // ═══════════════════════════════════════════════════════════════
 //  LOADING SCREEN → LOBBY
@@ -778,6 +779,9 @@ function _launchPhaser(){
     physics:{default:'arcade',arcade:{gravity:{y:GRAVITY},debug:false}},
     scene:[GameScene],
     scale:{mode:Phaser.Scale.RESIZE, autoCenter:Phaser.Scale.CENTER_BOTH},
+    // Prevent Phaser from calling preventDefault() on all touch events so our
+    // overlay buttons still receive pointer/touch events on mobile.
+    input:{touch:{capture:false}},
     // Android WebView needs these for image loading
     loader:{crossOrigin:'anonymous'},
   };
