@@ -27,41 +27,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ─── PARENT-PAGE ASSET BRIDGE ──────────────────────────────────────────────────
-# The game iframe has origin=null (srcdoc), so it cannot read window.location
-# itself. This script lives in the PARENT Streamlit page where window.location
-# IS the real public URL. It listens for the iframe's REQUEST_ASSET_BASE
-# message and replies with the correct origin — works on localhost, Streamlit
-# Cloud, and all mobile browsers without any server-side URL guessing.
-st.markdown("""
-<script>
-(function() {
-  var assetBase = window.location.origin + '/app/static';
-
-  function sendToAllIframes() {
-    document.querySelectorAll('iframe').forEach(function(f) {
-      try {
-        f.contentWindow.postMessage(
-          { type: 'STREAMLIT_ASSET_BASE', url: assetBase }, '*'
-        );
-      } catch(e) {}
-    });
-  }
-
-  // Reply whenever the iframe asks
-  window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'REQUEST_ASSET_BASE') {
-      sendToAllIframes();
-    }
-  });
-
-  // Also push proactively in case the request fires before listener is ready
-  setTimeout(sendToAllIframes, 800);
-  setTimeout(sendToAllIframes, 2500);
-})();
-</script>
-""", unsafe_allow_html=True)
-
 # ─── VERIFY FILES ──────────────────────────────────────────────────────────────
 if not os.path.exists("game.html"):
     st.error("⚠️  game.html not found — place it next to app.py")
@@ -71,25 +36,58 @@ if not os.path.exists("static/assets/Sprites/Characters/character_pink_idle.png"
     st.error("⚠️  Assets missing. Make sure static/assets/ contains the Kenney sprites.")
     st.stop()
 
-# ─── RENDER GAME ───────────────────────────────────────────────────────────────
+# ─── READ GAME HTML ────────────────────────────────────────────────────────────
 with open("game.html", "r", encoding="utf-8") as f:
     game_html = f.read()
 
-# ── Server-side injection (kept as a fallback; postMessage above is primary) ──
-try:
-    streamlit_url = os.environ.get("STREAMLIT_URL", "").rstrip("/")
-    if not streamlit_url:
-        host = st.get_option("browser.serverAddress") or "localhost"
-        port = st.get_option("server.port") or 8501
-        scheme = "https" if host not in ("localhost", "127.0.0.1") else "http"
-        streamlit_url = f"{scheme}://{host}:{port}"
+# ─── INJECT ASSET BASE DIRECTLY FROM BROWSER ──────────────────────────────────
+# st.markdown() strips <script> tags so we CANNOT use it for JS.
+# Instead we embed a tiny hidden st.components.v1.html() snippet whose ONLY job
+# is to run in the Streamlit parent page (where window.location is the real URL)
+# and broadcast the asset base to every iframe via postMessage.
+#
+# This is the fix for the "http://localhost:8501" fallback showing on mobile —
+# the parent page always knows the real https://your-app.streamlit.app origin.
 
-    asset_base = streamlit_url + "/app/static"
-    injection = f'<script>window.__ASSET_BASE__="{asset_base}";</script>'
-    game_html = game_html.replace("</head>", injection + "\n</head>", 1)
-except Exception:
-    pass
+BRIDGE_JS = """
+<script>
+(function() {
+  // We are running inside the Streamlit PARENT page, not the game iframe.
+  // window.location.origin here is always the real public URL.
+  var assetBase = window.location.origin + '/app/static';
 
+  function broadcast() {
+    // Target every iframe on the page (there may be several Streamlit iframes)
+    var frames = document.querySelectorAll('iframe');
+    frames.forEach(function(f) {
+      try { f.contentWindow.postMessage({type:'STREAMLIT_ASSET_BASE', url: assetBase}, '*'); }
+      catch(e) {}
+    });
+    // Also broadcast to the parent of THIS iframe in case we're nested
+    try { window.parent.postMessage({type:'STREAMLIT_ASSET_BASE', url: assetBase}, '*'); }
+    catch(e) {}
+  }
+
+  // Reply to any iframe that asks
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'REQUEST_ASSET_BASE') {
+      broadcast();
+    }
+  });
+
+  // Push proactively — the game iframe may already be loaded
+  broadcast();
+  setTimeout(broadcast, 500);
+  setTimeout(broadcast, 1500);
+  setTimeout(broadcast, 3000);
+})();
+</script>
+"""
+
+# height=0 + scrolling=False = invisible, zero-height element
+st.components.v1.html(BRIDGE_JS, height=0, scrolling=False)
+
+# ─── RENDER GAME ───────────────────────────────────────────────────────────────
 # height=10000 ensures the fixed-position iframe is never clipped on short
 # mobile viewports (iPhone SE, landscape phones with browser chrome, etc.)
 st.components.v1.html(game_html, height=10000, scrolling=False)
