@@ -71,6 +71,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
   background:#222;border:1px solid var(--bdr);border-radius:7px;padding:7px 16px;
   font-size:12px;color:#fff;z-index:999;opacity:0;transition:all .3s;pointer-events:none;}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── ASSET URL BANNER ── */
+#asset-banner{display:none;position:fixed;top:46px;left:0;right:0;z-index:200;
+  background:linear-gradient(90deg,#3a0a0a,#2a0505);border-bottom:2px solid #ff5252;
+  padding:8px 14px;align-items:center;gap:10px;font-size:12px;color:#ffaaaa;}
+#asset-banner b{color:#ff5252;}
+#asset-url-inp{flex:1;max-width:380px;background:#1a0808;border:1px solid #ff5252;
+  border-radius:6px;color:#fff;padding:4px 8px;font-size:12px;outline:none;}
+#asset-url-inp:focus{border-color:#ffd700;color:#ffd700;}
+.abtn{padding:4px 10px;border-radius:6px;border:none;font-size:11px;font-weight:700;cursor:pointer;}
+.abtn-apply{background:#ffd700;color:#000;}
+.abtn-dismiss{background:rgba(255,255,255,.1);color:#aaa;border:1px solid rgba(255,255,255,.15)!important;}
 </style>
 </head>
 <body>
@@ -128,8 +140,21 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
   <button class="tbtn" style="padding:2px 7px" onclick="changeZoom(0)">Reset</button>
   <button class="tbtn" style="padding:2px 7px" onclick="changeZoom(0.25)">+</button>
   <div class="sep"></div>
+  <span id="asset-status" title="Click to change asset URL" onclick="openAssetBanner()"
+    style="font-size:10px;cursor:pointer;padding:2px 6px;border-radius:4px;
+    background:rgba(255,255,255,.05);border:1px solid var(--bdr);">🖼️ Assets: <b id="asset-status-txt">checking…</b></span>
+  <div class="sep"></div>
   <span style="font-size:10px;color:var(--sub)">LClick/drag=paint · RClick=erase · Scroll=zoom · Middle-drag=pan · Ctrl+Z=undo</span>
 </div>
+</div>
+
+<!-- ASSET URL BANNER -->
+<div id="asset-banner">
+  <b>⚠️ Assets not loading.</b>
+  <span>Paste your Streamlit server URL:</span>
+  <input id="asset-url-inp" type="text" placeholder="e.g. http://localhost:8501">
+  <button class="abtn abtn-apply" onclick="applyAssetUrl()">✓ Apply</button>
+  <button class="abtn abtn-dismiss" onclick="document.getElementById('asset-banner').style.display='none'">✕</button>
 </div>
 
 <div id="pp">
@@ -156,27 +181,49 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
 <script>
 'use strict';
 // ── ASSET BASE ──────────────────────────────────────────────
-const ASSET_BASE=(()=>{
-  // 1. Injected at serve-time by setup.py (most reliable)
+let ASSET_BASE=(()=>{
   if(typeof window.__ASSET_BASE__==='string'&&window.__ASSET_BASE__)return window.__ASSET_BASE__;
-  // 2. ancestorOrigins: set by browser for srcdoc/sandboxed iframes (Chrome, Edge, Safari)
   try{
     const ao=window.location.ancestorOrigins;
     if(ao&&ao.length>0){const o=ao[ao.length-1];if(o&&o!=='null')return o+'/app/static';}
   }catch(e){}
-  // 3. document.referrer (Firefox fallback for srcdoc iframes)
   try{
     const r=document.referrer;
     if(r&&!r.startsWith('about:')){const u=new URL(r);if(u.origin&&u.origin!=='null')return u.origin+'/app/static';}
   }catch(e){}
-  // 4. parent.location (same-origin sandboxed Streamlit iframes)
   try{const p=window.parent.location.origin;if(p&&p!=='null')return p+'/app/static';}catch(e){}
-  // 5. own origin (served directly from a server)
   try{const c=window.location.origin;if(c&&c!=='null')return c+'/app/static';}catch(e){}
-  // 6. last resort
   return 'http://localhost:8501/app/static';
 })();
-const A=ASSET_BASE+'/assets/Sprites';
+let A=ASSET_BASE+'/assets/Sprites';
+
+// ── ASSET URL MANAGEMENT ────────────────────────────────────
+function openAssetBanner(){
+  const b=document.getElementById('asset-banner');
+  document.getElementById('asset-url-inp').value=ASSET_BASE.replace('/app/static','');
+  b.style.display='flex';
+}
+function applyAssetUrl(){
+  const raw=document.getElementById('asset-url-inp').value.trim().replace(/\/+$/,'');
+  if(!raw){toast('Enter a URL first');return;}
+  ASSET_BASE=raw+'/app/static';
+  A=ASSET_BASE+'/assets/Sprites';
+  Object.keys(imgs).forEach(k=>delete imgs[k]);
+  assetErrorCount=0;assetOkCount=0;
+  preloadAll();
+  rebuildPaletteImgs();
+  document.getElementById('asset-banner').style.display='none';
+  toast('🔄 Reloading assets from '+raw+'…');
+  updateAssetStatus();
+}
+function rebuildPaletteImgs(){
+  document.querySelectorAll('.ptile img').forEach(im=>{
+    const k=im.closest('.ptile').dataset.k;
+    if(!k)return;
+    const def=TILES[k]||OBJS[k];
+    if(def){im.src=A+'/'+def.src;im.style.opacity='1';}
+  });
+}
 
 // ── FIREBASE ────────────────────────────────────────────────
 firebase.initializeApp({
@@ -256,9 +303,47 @@ function mkLv(name){return{
 
 // ── IMAGE CACHE ─────────────────────────────────────────────
 const imgs={};
+let assetErrorCount=0;
+let assetOkCount=0;
+
+function onImgLoad(){
+  assetOkCount++;
+  updateAssetStatus();
+  redraw();
+}
+function onImgError(){
+  assetErrorCount++;
+  updateAssetStatus();
+  if(assetErrorCount===3){
+    document.getElementById('asset-url-inp').value=ASSET_BASE.replace('/app/static','');
+    document.getElementById('asset-banner').style.display='flex';
+  }
+}
+function updateAssetStatus(){
+  const el=document.getElementById('asset-status-txt');
+  const st=document.getElementById('asset-status');
+  if(!el)return;
+  if(assetErrorCount>0&&assetOkCount===0){
+    el.textContent='❌ broken';
+    st.style.borderColor='#ff5252';st.style.color='#ff8888';
+  }else if(assetOkCount>0&&assetErrorCount===0){
+    el.textContent='✅ ok';
+    st.style.borderColor='#00e676';st.style.color='#88ffaa';
+  }else if(assetOkCount>0&&assetErrorCount>0){
+    el.textContent=`⚠️ ${assetErrorCount} failed`;
+    st.style.borderColor='#ffd700';st.style.color='#ffd700';
+  }else{
+    el.textContent='…';
+  }
+}
+
 function loadImg(k,src){
   if(imgs[k])return imgs[k];
-  const i=new Image();i.src=A+'/'+src;i.onload=()=>redraw();imgs[k]=i;return i;
+  const i=new Image();
+  i.onload=()=>{onImgLoad();redraw();};
+  i.onerror=()=>onImgError();
+  i.src=A+'/'+src;
+  imgs[k]=i;return i;
 }
 function preloadAll(){
   Object.entries(TILES).forEach(([k,v])=>loadImg(k,v.src));
@@ -330,12 +415,21 @@ function drawAll(){
       const def=TILES[tt],im=imgs[tt];
       if(im&&im.complete&&im.naturalWidth>0){ctx.drawImage(im,sx,sy,cp,cp);}
       else{
-        ctx.fillStyle=def?(def.solid?'#4a7c3a':'#c8a820'):'#555';
+        // Colored fallback so tiles are always visible
+        const colors={grass:'#4a7c3a',snow:'#7ab8d4',sand:'#c8a820',coin:'#ffd700'};
+        const col=tt.startsWith('g_')||tt.startsWith('p_')||tt.startsWith('cl_')?'#4a7c3a':
+                  tt.startsWith('s_')||tt.startsWith('sp_')?'#7ab8d4':
+                  tt.startsWith('sd')?'#c8a820':
+                  tt.startsWith('c')?'#ffd700':'#888';
+        ctx.fillStyle=col+'cc';
         ctx.fillRect(sx+1,sy+1,cp-2,cp-2);
-        if(cp>20){
-          ctx.fillStyle='rgba(255,255,255,.5)';ctx.textAlign='center';
-          ctx.font=`${Math.max(7,cp*.3)}px sans-serif`;
-          ctx.fillText(tt.substring(0,3),sx+cp/2,sy+cp/2+3);
+        ctx.strokeStyle=col;ctx.lineWidth=1;
+        ctx.strokeRect(sx+1,sy+1,cp-2,cp-2);
+        if(cp>16){
+          ctx.fillStyle='rgba(255,255,255,.8)';ctx.textAlign='center';ctx.textBaseline='middle';
+          ctx.font=`bold ${Math.max(7,cp*.22)}px monospace`;
+          ctx.fillText(tt.replace(/_/g,'·'),sx+cp/2,sy+cp/2);
+          ctx.textBaseline='alphabetic';
         }
       }
     }
@@ -403,7 +497,10 @@ function buildPalette(){
     const g=document.createElement('div');g.className='pgrid';
     items.forEach(({k,v,isObj})=>{
       const el=document.createElement('div');el.className='ptile';el.title=v.lb;el.dataset.k=k;el.dataset.o=isObj?1:0;
-      const im=document.createElement('img');im.src=A+'/'+v.src;im.alt=v.lb;el.appendChild(im);
+      const im=document.createElement('img');
+      im.src=A+'/'+v.src;im.alt=v.lb;
+      im.onerror=function(){this.style.opacity='0.15';this.closest('.ptile').style.borderColor='#ff5252';};
+      el.appendChild(im);
       const lb=document.createElement('div');lb.className='ptlbl';lb.textContent=v.lb.replace(/[◤◥▀▌■▐═►◄☁]/,'').trim()||v.lb;
       el.appendChild(lb);
       el.addEventListener('click',()=>selectPTile(k,isObj,el));
@@ -713,14 +810,42 @@ function toast(msg){
 }
 
 // ── INIT ────────────────────────────────────────────────────
-window.addEventListener('DOMContentLoaded',()=>{
-  initCanvas();buildPalette();preloadAll();
+function init(){
+  try{initCanvas();}catch(e){console.warn('initCanvas error',e);}
+  try{buildPalette();}catch(e){console.warn('buildPalette error',e);}
+  try{preloadAll();}catch(e){console.warn('preloadAll error',e);}
   snap();syncTB();centerView();
   renderLoop();setInterval(updateSt,250);
   loadLevels();
+  // Force a resize after layout settles (fixes 0×0 in srcdoc iframes)
+  setTimeout(()=>{
+    const cw=document.getElementById('cw');
+    if(cw&&(W===0||H===0)){
+      W=cw.clientWidth||800;H=cw.clientHeight||550;
+      const canvas=document.getElementById('canvas');
+      canvas.width=W;canvas.height=H;
+      centerView();redraw();
+    }
+    updateAssetStatus();
+  },200);
+  setTimeout(()=>{redraw();},600);
   toast('🗺️ Drag tiles onto the canvas to build your level!');
+}
+
+// Run on DOMContentLoaded, but also fall back to a timeout in case it already fired
+if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',init);
+}else{
+  // Already loaded (common in srcdoc iframes)
+  setTimeout(init,50);
+}
+window.addEventListener('resize',()=>{
+  const cw=document.getElementById('cw');
+  if(cw){W=cw.clientWidth;H=cw.clientHeight;
+    document.getElementById('canvas').width=W;
+    document.getElementById('canvas').height=H;}
+  redraw();
 });
-window.addEventListener('resize',()=>redraw());
 </script>
 </body>
 </html>

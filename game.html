@@ -103,6 +103,26 @@ select option{background:#302b63;color:#fff;}
 #game-container{position:fixed;inset:0;z-index:1;}
 canvas{display:block;}
 
+/* ── FULLSCREEN EXIT BTN ── */
+#fs-exit{position:fixed;top:8px;right:52px;z-index:90;display:none;
+  background:rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.2);border-radius:8px;
+  color:#fff;font-size:15px;padding:4px 10px;cursor:pointer;pointer-events:all;}
+#fs-exit:hover{background:rgba(255,82,82,.4);border-color:#ff5252;}
+
+/* ── ASSET FIX OVERLAY (shown when assets fail on Android) ── */
+#asset-fix{position:fixed;inset:0;z-index:1000;background:rgba(10,10,20,.96);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  padding:24px;text-align:center;color:#fff;}
+#asset-fix h2{font-size:22px;color:#ffd700;margin-bottom:8px;}
+#asset-fix p{color:#aaa;font-size:13px;margin-bottom:20px;max-width:340px;line-height:1.6;}
+#asset-fix input{background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.25);
+  border-radius:10px;color:#fff;padding:12px 16px;font-size:15px;width:100%;max-width:340px;
+  outline:none;margin-bottom:12px;}
+#asset-fix input:focus{border-color:#ffd700;}
+#asset-fix button{background:linear-gradient(135deg,#ffd700,#ff9500);color:#000;border:none;
+  border-radius:10px;padding:12px 28px;font-size:15px;font-weight:800;cursor:pointer;width:100%;max-width:340px;}
+#asset-fix .hint{font-size:11px;color:#555;margin-top:14px;}
+
 /* ── SETTINGS PANEL ── */
 #settings-btn{position:fixed;top:8px;right:10px;z-index:80;pointer-events:all;
   background:rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.2);border-radius:8px;
@@ -248,6 +268,18 @@ canvas{display:block;}
 <!-- GAME CANVAS -->
 <div id="game-container"></div>
 
+<!-- Fullscreen exit -->
+<button id="fs-exit" onclick="exitFS()">✕ Exit Fullscreen</button>
+
+<!-- Asset URL fix overlay (Android fallback) -->
+<div id="asset-fix">
+  <h2>🖼️ Assets Not Loading</h2>
+  <p>Enter your Streamlit server address so the game can load sprites. Use the URL shown in your browser while running Streamlit.</p>
+  <input id="asset-url" type="url" placeholder="e.g. http://192.168.1.5:8501" autocomplete="off" autocorrect="off" spellcheck="false">
+  <button onclick="applyAssetFix()">▶ Load Game</button>
+  <div class="hint">Tip: On Streamlit Cloud, paste the full https:// URL from your browser.</div>
+</div>
+
 <!-- MOBILE CONTROLS -->
 <div id="mctrl">
   <div class="ctrl-grp">
@@ -282,14 +314,60 @@ canvas{display:block;}
 //  We detect the real Streamlit origin so Phaser can load sprites
 //  from /app/static/assets/… via absolute URLs.
 // ═══════════════════════════════════════════════════════════════
-const ASSET_BASE = (() => {
-  if(typeof window.__ASSET_BASE__==='string'&&window.__ASSET_BASE__)return window.__ASSET_BASE__;
-  try{const ao=window.location.ancestorOrigins;if(ao&&ao.length>0){const o=ao[ao.length-1];if(o&&o!=='null')return o+'/app/static';}}catch(e){}
-  try{const r=document.referrer;if(r&&!r.startsWith('about:')){const u=new URL(r);if(u.origin&&u.origin!=='null')return u.origin+'/app/static';}}catch(e){}
+// ═══════════════════════════════════════════════════════════════
+//  ASSET BASE — multi-strategy detection with Android fallback
+// ═══════════════════════════════════════════════════════════════
+let ASSET_BASE = (() => {
+  // 1. Injected by setup.py at serve time (most reliable)
+  if(typeof window.__ASSET_BASE__==='string' && window.__ASSET_BASE__)
+    return window.__ASSET_BASE__;
+  // 2. ancestorOrigins — Chrome/Edge/Android Chrome in iframes
+  try{
+    const ao=window.location.ancestorOrigins;
+    if(ao && ao.length>0){const o=ao[ao.length-1];if(o&&o!=='null')return o+'/app/static';}
+  }catch(e){}
+  // 3. document.referrer — Firefox srcdoc fallback
+  try{
+    const r=document.referrer;
+    if(r&&!r.startsWith('about:')){const u=new URL(r);if(u.origin&&u.origin!=='null')return u.origin+'/app/static';}
+  }catch(e){}
+  // 4. parent.location — same-origin only
   try{const p=window.parent.location.origin;if(p&&p!=='null')return p+'/app/static';}catch(e){}
-  try{const c=window.location.origin;if(c&&c!=='null')return c+'/app/static';}catch(e){}
+  // 5. own origin
+  try{const c=window.location.origin;if(c&&c!=='null'&&c!=='null')return c+'/app/static';}catch(e){}
   return 'http://localhost:8501/app/static';
 })();
+
+// ── postMessage: ask parent for the URL (works even in sandboxed iframes) ──
+let _assetBaseResolved = false;
+window.addEventListener('message', e => {
+  if(e.data && e.data.type==='STREAMLIT_ASSET_BASE' && !_assetBaseResolved){
+    _assetBaseResolved = true;
+    ASSET_BASE = e.data.url;
+  }
+});
+// Ask parent for URL — Streamlit's st.components.v1.html iframe can receive this
+try{ window.parent.postMessage({type:'REQUEST_ASSET_BASE'},'*'); }catch(e){}
+
+// ── Probe a known asset to detect Android URL failures before Phaser starts ──
+let _assetProbeOk = false;
+async function probeAssets(){
+  const testUrl = ASSET_BASE + '/assets/Sprites/Tiles/terrain_grass_block_top.png';
+  try{
+    const r = await fetch(testUrl, {method:'HEAD', cache:'no-cache'});
+    _assetProbeOk = r.ok;
+  }catch(e){ _assetProbeOk = false; }
+  return _assetProbeOk;
+}
+
+function applyAssetFix(){
+  const raw = document.getElementById('asset-url').value.trim().replace(/\/+$/,'');
+  if(!raw){ return; }
+  ASSET_BASE = raw + '/app/static';
+  document.getElementById('asset-fix').style.display = 'none';
+  document.getElementById('loading').style.display = 'flex';
+  _launchPhaser();
+}
 
 // ═══════════════════════════════════════════════════════════════
 //  FIREBASE
@@ -643,19 +721,65 @@ async function leaveRoom(){
 // ═══════════════════════════════════════════════════════════════
 //  LAUNCH PHASER
 // ═══════════════════════════════════════════════════════════════
-function launchGame(){
+// ── FULLSCREEN HELPERS ──────────────────────────────────────
+function enterFS(){
+  const el = document.documentElement;
+  const req = el.requestFullscreen || el.webkitRequestFullscreen ||
+              el.mozRequestFullScreen || el.msRequestFullscreen;
+  if(req) req.call(el).catch(()=>{});
+  document.getElementById('fs-exit').style.display='block';
+}
+function exitFS(){
+  const ex = document.exitFullscreen || document.webkitExitFullscreen ||
+             document.mozCancelFullScreen || document.msExitFullscreen;
+  if(ex) ex.call(document).catch(()=>{});
+  document.getElementById('fs-exit').style.display='none';
+}
+document.addEventListener('fullscreenchange', ()=>{
+  if(!document.fullscreenElement)
+    document.getElementById('fs-exit').style.display='none';
+});
+
+// ── LAUNCH ─────────────────────────────────────────────────
+async function launchGame(){
   document.getElementById('room-lobby').style.display='none';
+  document.getElementById('loading').style.display='flex';
   document.getElementById('hud').style.display='block';
   document.getElementById('settings-btn').style.display='flex';
   if(isMobile) document.getElementById('mctrl').style.display='flex';
 
+  // Enter fullscreen immediately on user gesture (game start click)
+  enterFS();
+
+  // Probe assets — on Android the URL is often wrong
+  const ok = await probeAssets();
+  if(!ok){
+    // Show manual URL input overlay
+    document.getElementById('loading').style.display='none';
+    document.getElementById('asset-fix').style.display='flex';
+    // Pre-fill with best guess
+    document.getElementById('asset-url').value =
+      ASSET_BASE.replace('/app/static','');
+    return;
+  }
+
+  _launchPhaser();
+}
+
+function _launchPhaser(){
+  // On Android use CANVAS renderer — WebGL causes cross-origin texture issues
+  // in some Android WebView / Chrome versions
+  const renderer = isMobile ? Phaser.CANVAS : Phaser.AUTO;
+
   const cfg={
-    type:Phaser.AUTO,
+    type: renderer,
     parent:'game-container',
     backgroundColor:'#5CA8E0',
     physics:{default:'arcade',arcade:{gravity:{y:GRAVITY},debug:false}},
     scene:[GameScene],
-    scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH}
+    scale:{mode:Phaser.Scale.RESIZE, autoCenter:Phaser.Scale.CENTER_BOTH},
+    // Android WebView needs these for image loading
+    loader:{crossOrigin:'anonymous'},
   };
   gameInst=new Phaser.Game(cfg);
 }
@@ -731,9 +855,20 @@ class GameScene extends Phaser.Scene{
     this.load.image('ladybug_a',  A+'/Sprites/Enemies/ladybug_walk_a.png');
     this.load.image('ladybug_b',  A+'/Sprites/Enemies/ladybug_walk_b.png');
 
-    // progress
+    // progress & error
     this.load.on('progress',v=>{setLoad(Math.round(v*100),'Loading assets…');});
     this.load.on('complete',()=>{setLoad(100,'Done!');});
+    let _errCount=0;
+    this.load.on('loaderror', file=>{
+      _errCount++;
+      if(_errCount===3){
+        // 3 failures = wrong base URL, show fix overlay
+        document.getElementById('loading').style.display='none';
+        document.getElementById('asset-fix').style.display='flex';
+        document.getElementById('asset-url').value=ASSET_BASE.replace('/app/static','');
+        if(gameInst){gameInst.destroy(true);gameInst=null;}
+      }
+    });
   }
 
   create(){
@@ -1264,12 +1399,15 @@ function showWin(winnerName,allPlayers,isFlag){
 
 async function backToLobby(){
   document.getElementById('win-screen').style.display='none';
+  document.getElementById('asset-fix').style.display='none';
+  document.getElementById('fs-exit').style.display='none';
   if(gameInst){gameInst.destroy(true);gameInst=null;}
   if(myRoom){
     await db.ref('rooms/'+myRoom+'/players/'+myId).remove();
     myRoom=''; isHost=false;
   }
   currentLevelIdx=0;
+  exitFS();
   document.getElementById('lobby').style.display='flex';
 }
 </script>
