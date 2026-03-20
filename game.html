@@ -724,16 +724,23 @@ document.addEventListener('fullscreenchange', ()=>{
 // ── LAUNCH ─────────────────────────────────────────────────
 function launchGame(){
   document.getElementById('room-lobby').style.display='none';
-  document.getElementById('loading').style.display='flex';
   document.getElementById('hud').style.display='block';
   document.getElementById('settings-btn').style.display='flex';
   if(isMobile) document.getElementById('mctrl').style.display='flex';
   enterFS();
+
+  // On mobile: if URL still resolves to localhost, assets won't load.
+  // Show the manual URL screen so the user can enter their LAN/cloud IP.
+  if(isMobile && ASSET_BASE.includes('localhost')){
+    document.getElementById('asset-url').value='';
+    document.getElementById('asset-fix').style.display='flex';
+    return;
+  }
+
   _launchPhaser();
 }
 
 function _launchPhaser(){
-  // Use CANVAS on mobile — avoids WebGL texture cross-origin issues on Android WebView
   const cfg={
     type: isMobile ? Phaser.CANVAS : Phaser.AUTO,
     parent:'game-container',
@@ -816,20 +823,9 @@ class GameScene extends Phaser.Scene{
     this.load.image('ladybug_a',  A+'/Sprites/Enemies/ladybug_walk_a.png');
     this.load.image('ladybug_b',  A+'/Sprites/Enemies/ladybug_walk_b.png');
 
-    // progress & errors
+    // progress
     this.load.on('progress',v=>{setLoad(Math.round(v*100),'Loading assets…');});
     this.load.on('complete',()=>{setLoad(100,'Done!');});
-    let _errCount=0;
-    this.load.on('loaderror',()=>{
-      _errCount++;
-      if(_errCount===3){
-        // Assets are 404ing — wrong base URL. Show the manual fix overlay.
-        document.getElementById('loading').style.display='none';
-        const fix=document.getElementById('asset-fix');
-        document.getElementById('asset-url').value=ASSET_BASE.replace('/app/static','');
-        fix.style.display='flex';
-      }
-    });
   }
 
   create(){
