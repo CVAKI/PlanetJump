@@ -18,11 +18,9 @@ st.markdown("""
                      max-width: 100% !important; }
   .stApp { background: #1a1a2e; overflow: hidden; }
   iframe {
-    position: fixed !important;
-    top: 0 !important; left: 0 !important;
+    position: fixed !important; top: 0 !important; left: 0 !important;
     width: 100vw !important; height: 100vh !important;
-    border: none !important;
-    z-index: 9999 !important;
+    border: none !important; z-index: 9999 !important;
   }
 </style>
 """, unsafe_allow_html=True)
@@ -36,41 +34,53 @@ if not os.path.exists("static/assets/Sprites/Characters/character_pink_idle.png"
     st.error("⚠️  Assets missing. Make sure static/assets/ contains the Kenney sprites.")
     st.stop()
 
-# ─── READ GAME HTML ────────────────────────────────────────────────────────────
+# ─── DETECT REAL PUBLIC URL FROM REQUEST HEADERS ──────────────────────────────
+# Both st.markdown() and st.components.v1.html() create srcdoc iframes whose
+# window.location.origin is "null" — so ALL browser-side URL detection fails.
+# The ONLY reliable source of truth is the HTTP request headers seen by Python.
+def get_asset_base() -> str:
+    try:
+        # st.context.headers available in Streamlit 1.33+
+        headers = st.context.headers
+        host = headers.get("host", "")
+        if host:
+            # x-forwarded-proto is set by Streamlit Cloud's reverse proxy
+            proto = headers.get("x-forwarded-proto", "")
+            if not proto:
+                # Local dev: decide from host
+                proto = "http" if ("localhost" in host or "127.0.0.1" in host) else "https"
+            return f"{proto}://{host}/app/static"
+    except Exception:
+        pass
+
+    # Fallback 1: STREAMLIT_URL env var (set on some cloud platforms)
+    env_url = os.environ.get("STREAMLIT_URL", "").rstrip("/")
+    if env_url:
+        return env_url + "/app/static"
+
+    # Fallback 2: build from st.get_option (works locally, wrong on Cloud)
+    try:
+        host = st.get_option("browser.serverAddress") or "localhost"
+        port = st.get_option("server.port") or 8501
+        proto = "http" if host in ("localhost", "127.0.0.1") else "https"
+        return f"{proto}://{host}:{port}/app/static"
+    except Exception:
+        pass
+
+    return "http://localhost:8501/app/static"
+
+asset_base = get_asset_base()
+
+# ─── READ & PATCH GAME HTML ────────────────────────────────────────────────────
 with open("game.html", "r", encoding="utf-8") as f:
     game_html = f.read()
 
-# ─── ASSET BASE BRIDGE ────────────────────────────────────────────────────────
-# IMPORTANT: st.markdown() strips <script> tags — use st.components.v1.html()
-# This tiny invisible iframe runs in the PARENT page (where window.location
-# is the real public URL) and broadcasts it down to the game iframe.
-BRIDGE_JS = """
-<script>
-(function() {
-  var assetBase = window.location.origin + '/app/static';
+# Inject the asset base as the very first script — this overwrites the JS
+# fallback chain so Phaser always gets the correct URL immediately.
+injection = f'<script>window.__ASSET_BASE__ = "{asset_base}";</script>'
+game_html = game_html.replace("</head>", injection + "\n</head>", 1)
 
-  function broadcast() {
-    document.querySelectorAll('iframe').forEach(function(f) {
-      try { f.contentWindow.postMessage({type:'STREAMLIT_ASSET_BASE', url: assetBase}, '*'); }
-      catch(e) {}
-    });
-    try { window.parent.postMessage({type:'STREAMLIT_ASSET_BASE', url: assetBase}, '*'); }
-    catch(e) {}
-  }
-
-  window.addEventListener('message', function(e) {
-    if (e.data && e.data.type === 'REQUEST_ASSET_BASE') { broadcast(); }
-  });
-
-  broadcast();
-  setTimeout(broadcast, 500);
-  setTimeout(broadcast, 1500);
-  setTimeout(broadcast, 3000);
-})();
-</script>
-"""
-st.components.v1.html(BRIDGE_JS, height=0, scrolling=False)
-
-# ─── RENDER GAME ───────────────────────────────────────────────────────────────
-# height=10000 so the fixed-position iframe is never clipped on mobile
+# ─── RENDER ───────────────────────────────────────────────────────────────────
+# height=10000 prevents the wrapper div from clipping the fixed iframe on
+# short mobile viewports (iPhone SE, landscape with browser chrome, etc.)
 st.components.v1.html(game_html, height=10000, scrolling=False)
