@@ -34,53 +34,19 @@ if not os.path.exists("static/assets/Sprites/Characters/character_pink_idle.png"
     st.error("⚠️  Assets missing. Make sure static/assets/ contains the Kenney sprites.")
     st.stop()
 
-# ─── DETECT REAL PUBLIC URL FROM REQUEST HEADERS ──────────────────────────────
-# Both st.markdown() and st.components.v1.html() create srcdoc iframes whose
-# window.location.origin is "null" — so ALL browser-side URL detection fails.
-# The ONLY reliable source of truth is the HTTP request headers seen by Python.
-def get_asset_base() -> str:
-    try:
-        # st.context.headers available in Streamlit 1.33+
-        headers = st.context.headers
-        host = headers.get("host", "")
-        if host:
-            # x-forwarded-proto is set by Streamlit Cloud's reverse proxy
-            proto = headers.get("x-forwarded-proto", "")
-            if not proto:
-                # Local dev: decide from host
-                proto = "http" if ("localhost" in host or "127.0.0.1" in host) else "https"
-            return f"{proto}://{host}/app/static"
-    except Exception:
-        pass
-
-    # Fallback 1: STREAMLIT_URL env var (set on some cloud platforms)
-    env_url = os.environ.get("STREAMLIT_URL", "").rstrip("/")
-    if env_url:
-        return env_url + "/app/static"
-
-    # Fallback 2: build from st.get_option (works locally, wrong on Cloud)
-    try:
-        host = st.get_option("browser.serverAddress") or "localhost"
-        port = st.get_option("server.port") or 8501
-        proto = "http" if host in ("localhost", "127.0.0.1") else "https"
-        return f"{proto}://{host}:{port}/app/static"
-    except Exception:
-        pass
-
-    return "http://localhost:8501/app/static"
-
-asset_base = get_asset_base()
-
-# ─── READ & PATCH GAME HTML ────────────────────────────────────────────────────
+# ─── READ GAME HTML ────────────────────────────────────────────────────────────
 with open("game.html", "r", encoding="utf-8") as f:
     game_html = f.read()
 
-# Inject the asset base as the very first script — this overwrites the JS
-# fallback chain so Phaser always gets the correct URL immediately.
-injection = f'<script>window.__ASSET_BASE__ = "{asset_base}";</script>'
-game_html = game_html.replace("</head>", injection + "\n</head>", 1)
+# ─── NO SERVER-SIDE URL INJECTION ─────────────────────────────────────────────
+# st.context.headers captures internal WebSocket headers, NOT the browser's
+# real request — so on Streamlit Cloud it always shows "localhost:8501" which
+# is wrong. Injecting that URL breaks asset loading on mobile.
+#
+# Instead, game.html detects the correct URL entirely in the browser using:
+#   1. window.location.ancestorOrigins  (Chrome / Android Chrome — most reliable)
+#   2. document.referrer                (Firefox fallback)
+# Both work correctly inside Streamlit's srcdoc iframes on the real public URL.
 
-# ─── RENDER ───────────────────────────────────────────────────────────────────
-# height=10000 prevents the wrapper div from clipping the fixed iframe on
-# short mobile viewports (iPhone SE, landscape with browser chrome, etc.)
+# ─── RENDER ────────────────────────────────────────────────────────────────────
 st.components.v1.html(game_html, height=10000, scrolling=False)

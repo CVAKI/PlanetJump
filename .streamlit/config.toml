@@ -3,6 +3,8 @@
 # Without this, ALL asset requests (images, sounds) return 404.
 enableStaticServing = true
 headless = true
+enableCORS = false
+enableXsrfProtection = false
 
 [browser]
 # Prevents the browser from auto-opening a tab every run

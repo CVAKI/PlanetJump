@@ -292,24 +292,22 @@ canvas{display:block;}
 'use strict';
 
 // ═══════════════════════════════════════════════════════════════
-//  ASSET BASE
-//  app.py injects window.__ASSET_BASE__ using real HTTP request
-//  headers (st.context.headers) — always the correct public URL.
+//  ASSET BASE — browser-side detection only.
+//  Never inject from Python: st.context.headers reads internal
+//  WebSocket headers and always returns localhost:8501 on Cloud.
 // ═══════════════════════════════════════════════════════════════
 let ASSET_BASE = (function(){
-  // 1. Injected by app.py server-side — most reliable
-  if(typeof window.__ASSET_BASE__==='string' && window.__ASSET_BASE__)
-    return window.__ASSET_BASE__;
-  // 2. ancestorOrigins — Chrome / Android Chrome inside iframes
+  // 1. ancestorOrigins — Chrome/Edge/Android (most reliable in iframes)
   try{
     var ao=window.location.ancestorOrigins;
-    if(ao&&ao.length){var o=ao[ao.length-1];if(o&&o!=='null')return o+'/app/static';}
+    if(ao&&ao.length>0){var o=ao[ao.length-1];if(o&&o!=='null')return o+'/app/static';}
   }catch(e){}
-  // 3. document.referrer — Firefox srcdoc fallback
+  // 2. document.referrer — Firefox srcdoc fallback
   try{
     var r=document.referrer;
-    if(r&&!r.startsWith('about:')){var u=new URL(r);if(u.origin!=='null')return u.origin+'/app/static';}
+    if(r&&!r.startsWith('about:')){var u=new URL(r);if(u.origin&&u.origin!=='null')return u.origin+'/app/static';}
   }catch(e){}
+  // 3. Local dev fallback
   return 'http://localhost:8501/app/static';
 })();
 
@@ -318,7 +316,7 @@ let _assetProbeOk = false;
 function probeAssets(){
   return new Promise(resolve => {
     const img = new Image();
-    // Don't set crossOrigin — matches how mobile Phaser CANVAS loads images
+    // No crossOrigin — assets are same-origin, CORS not needed
     const testUrl = ASSET_BASE + '/assets/Sprites/Tiles/terrain_grass_block_top.png';
     img.onload  = () => { _assetProbeOk = true;  resolve(true);  };
     img.onerror = () => { _assetProbeOk = false; resolve(false); };
@@ -736,7 +734,7 @@ async function launchGame(){
   // Enter fullscreen immediately on user gesture (game start click)
   enterFS();
 
-  // Wait briefly so any late __ASSET_BASE__ injection can settle
+  // Brief pause for iframe init
   setLoad(10, 'Detecting asset URL…');
   await new Promise(r => setTimeout(r, 200));
 
@@ -770,8 +768,6 @@ function _launchPhaser(){
     // Prevent Phaser from calling preventDefault() on all touch events so our
     // overlay buttons still receive pointer/touch events on mobile.
     input:{touch:{capture:false}},
-    // No crossOrigin setting — avoids CORS preflight failures on mobile.
-    // Assets are same-origin (/app/static) so crossOrigin is never needed.
     loader: {},
   };
   gameInst=new Phaser.Game(cfg);
