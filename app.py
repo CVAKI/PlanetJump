@@ -17,9 +17,18 @@ st.markdown("""
   .block-container { padding: 0 !important; margin: 0 !important;
                      max-width: 100% !important; }
   .stApp { background: #1a1a2e; overflow: hidden; }
-  iframe { position: fixed !important; top: 0 !important; left: 0 !important;
-           width: 100vw !important; height: 100vh !important;
-           border: none !important; z-index: 9999 !important; }
+
+  /* Pin the game iframe to the full viewport on ALL screen sizes.
+     height=10000 on the component guarantees the wrapper div never clips it. */
+  iframe {
+    position: fixed !important;
+    top: 0 !important; left: 0 !important;
+    width: 100vw !important; height: 100vh !important;
+    border: none !important;
+    z-index: 9999 !important;
+    /* Allow the Fullscreen API and pointer-lock inside the iframe */
+    allow: fullscreen; allowfullscreen: true;
+  }
 </style>
 """, unsafe_allow_html=True)
 
@@ -51,5 +60,8 @@ try:
 except Exception:
     pass
 
-# ─────────────────────────────────────────────────────────────────────────────
-st.components.v1.html(game_html, height=750, scrolling=False)
+# ─── RENDER ───────────────────────────────────────────────────────────────────
+# height=10000 makes the wrapper div taller than any real screen so the CSS
+# `height:100vh` on the iframe is never clipped — critical on short mobile
+# viewports (e.g. iPhone SE, landscape phones with browser chrome visible).
+st.components.v1.html(game_html, height=10000, scrolling=False)
