@@ -1,7 +1,7 @@
 import streamlit as st
 import os
-import socket
 
+# ─── PAGE CONFIG ───────────────────────────────────────────────────────────────
 st.set_page_config(
     page_title="🪐 Planet Jumpers: Coin Rush",
     page_icon="🪐",
@@ -9,6 +9,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
+# ─── HIDE ALL STREAMLIT CHROME ─────────────────────────────────────────────────
 st.markdown("""
 <style>
   #MainMenu, header, footer, .stDeployButton,
@@ -22,46 +23,33 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# ─── VERIFY FILES ──────────────────────────────────────────────────────────────
 if not os.path.exists("game.html"):
-    st.error("⚠️  game.html not found"); st.stop()
-if not os.path.exists("static/assets/Sprites/Characters/character_pink_idle.png"):
-    st.error("⚠️  Assets missing"); st.stop()
+    st.error("⚠️  game.html not found — place it next to app.py")
+    st.stop()
 
+if not os.path.exists("static/assets/Sprites/Characters/character_pink_idle.png"):
+    st.error("⚠️  Assets missing. Make sure static/assets/ contains the Kenney sprites.")
+    st.stop()
+
+# ─── RENDER GAME ───────────────────────────────────────────────────────────────
 with open("game.html", "r", encoding="utf-8") as f:
     game_html = f.read()
 
-def get_streamlit_url():
-    # 1. Streamlit Cloud sets this env var automatically
-    url = os.environ.get("STREAMLIT_URL", "").rstrip("/")
-    if url:
-        return url
-    # 2. Configured host (cloud deployments / custom domain)
-    try:
-        host = st.get_option("browser.serverAddress") or ""
-        port = st.get_option("server.port") or 8501
-        if host and host not in ("localhost", "127.0.0.1", "0.0.0.0"):
-            scheme = "https" if not host.replace(".","").isdigit() else "http"
-            return f"{scheme}://{host}:{port}"
-    except Exception:
-        pass
-    # 3. LAN IP — critical for Android on same WiFi as the dev machine
-    try:
-        port = st.get_option("server.port") or 8501
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        lan_ip = s.getsockname()[0]
-        s.close()
-        return f"http://{lan_ip}:{port}"
-    except Exception:
-        pass
-    return "http://localhost:8501"
-
+# ── INJECT ASSET BASE ─────────────────────────────────────────────────────────
 try:
-    streamlit_url = get_streamlit_url()
-    asset_base    = streamlit_url + "/app/static"
-    injection     = f'<script>window.__ASSET_BASE__="{asset_base}";</script>'
-    game_html     = game_html.replace("</head>", injection + "\n</head>", 1)
+    streamlit_url = os.environ.get("STREAMLIT_URL", "").rstrip("/")
+    if not streamlit_url:
+        host = st.get_option("browser.serverAddress") or "localhost"
+        port = st.get_option("server.port") or 8501
+        scheme = "https" if host not in ("localhost", "127.0.0.1") else "http"
+        streamlit_url = f"{scheme}://{host}:{port}"
+
+    asset_base = streamlit_url + "/app/static"
+    injection = f'<script>window.__ASSET_BASE__="{asset_base}";</script>'
+    game_html = game_html.replace("</head>", injection + "\n</head>", 1)
 except Exception:
     pass
 
+# ─────────────────────────────────────────────────────────────────────────────
 st.components.v1.html(game_html, height=750, scrolling=False)
