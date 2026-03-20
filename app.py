@@ -17,19 +17,49 @@ st.markdown("""
   .block-container { padding: 0 !important; margin: 0 !important;
                      max-width: 100% !important; }
   .stApp { background: #1a1a2e; overflow: hidden; }
-
-  /* Pin the game iframe to the full viewport on ALL screen sizes.
-     height=10000 on the component guarantees the wrapper div never clips it. */
   iframe {
     position: fixed !important;
     top: 0 !important; left: 0 !important;
     width: 100vw !important; height: 100vh !important;
     border: none !important;
     z-index: 9999 !important;
-    /* Allow the Fullscreen API and pointer-lock inside the iframe */
-    allow: fullscreen; allowfullscreen: true;
   }
 </style>
+""", unsafe_allow_html=True)
+
+# ─── PARENT-PAGE ASSET BRIDGE ──────────────────────────────────────────────────
+# The game iframe has origin=null (srcdoc), so it cannot read window.location
+# itself. This script lives in the PARENT Streamlit page where window.location
+# IS the real public URL. It listens for the iframe's REQUEST_ASSET_BASE
+# message and replies with the correct origin — works on localhost, Streamlit
+# Cloud, and all mobile browsers without any server-side URL guessing.
+st.markdown("""
+<script>
+(function() {
+  var assetBase = window.location.origin + '/app/static';
+
+  function sendToAllIframes() {
+    document.querySelectorAll('iframe').forEach(function(f) {
+      try {
+        f.contentWindow.postMessage(
+          { type: 'STREAMLIT_ASSET_BASE', url: assetBase }, '*'
+        );
+      } catch(e) {}
+    });
+  }
+
+  // Reply whenever the iframe asks
+  window.addEventListener('message', function(e) {
+    if (e.data && e.data.type === 'REQUEST_ASSET_BASE') {
+      sendToAllIframes();
+    }
+  });
+
+  // Also push proactively in case the request fires before listener is ready
+  setTimeout(sendToAllIframes, 800);
+  setTimeout(sendToAllIframes, 2500);
+})();
+</script>
 """, unsafe_allow_html=True)
 
 # ─── VERIFY FILES ──────────────────────────────────────────────────────────────
@@ -45,7 +75,7 @@ if not os.path.exists("static/assets/Sprites/Characters/character_pink_idle.png"
 with open("game.html", "r", encoding="utf-8") as f:
     game_html = f.read()
 
-# ── INJECT ASSET BASE ─────────────────────────────────────────────────────────
+# ── Server-side injection (kept as a fallback; postMessage above is primary) ──
 try:
     streamlit_url = os.environ.get("STREAMLIT_URL", "").rstrip("/")
     if not streamlit_url:
@@ -60,8 +90,6 @@ try:
 except Exception:
     pass
 
-# ─── RENDER ───────────────────────────────────────────────────────────────────
-# height=10000 makes the wrapper div taller than any real screen so the CSS
-# `height:100vh` on the iframe is never clipped — critical on short mobile
-# viewports (e.g. iPhone SE, landscape phones with browser chrome visible).
+# height=10000 ensures the fixed-position iframe is never clipped on short
+# mobile viewports (iPhone SE, landscape phones with browser chrome, etc.)
 st.components.v1.html(game_html, height=10000, scrolling=False)

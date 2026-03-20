@@ -320,16 +320,30 @@ let ASSET_BASE = (() => {
   return 'http://localhost:8501/app/static';
 })();
 
-// ── postMessage: ask parent for the URL (works even in sandboxed iframes) ──
+// ── postMessage: ask parent for the real URL (always correct on mobile) ──
+// The parent Streamlit page knows window.location.origin; the srcdoc iframe
+// does not. We ask, wait up to 1.5 s for a reply, then proceed.
 let _assetBaseResolved = false;
+let _assetBaseResolveCallback = null;
+
 window.addEventListener('message', e => {
   if(e.data && e.data.type==='STREAMLIT_ASSET_BASE' && !_assetBaseResolved){
     _assetBaseResolved = true;
     ASSET_BASE = e.data.url;
+    if(_assetBaseResolveCallback){ _assetBaseResolveCallback(); _assetBaseResolveCallback=null; }
   }
 });
-// Ask parent for URL — Streamlit's st.components.v1.html iframe can receive this
-try{ window.parent.postMessage({type:'REQUEST_ASSET_BASE'},'*'); }catch(e){}
+
+function waitForAssetBase(timeout){
+  return new Promise(resolve => {
+    if(_assetBaseResolved){ resolve(); return; }
+    _assetBaseResolveCallback = resolve;
+    // Ask parent; it will postMessage back
+    try{ window.parent.postMessage({type:'REQUEST_ASSET_BASE'},'*'); }catch(e){}
+    // Fallback: if no reply in `timeout` ms, proceed with best-effort URL
+    setTimeout(()=>{ if(!_assetBaseResolved){ resolve(); } }, timeout);
+  });
+}
 
 // ── Probe a known asset to detect Android URL failures before Phaser starts ──
 let _assetProbeOk = false;
@@ -751,6 +765,11 @@ async function launchGame(){
 
   // Enter fullscreen immediately on user gesture (game start click)
   enterFS();
+
+  // Wait for the parent page to send the real asset URL (up to 1.5 s).
+  // This is the critical step that fixes "assets not loading" on mobile.
+  setLoad(10, 'Detecting asset URL…');
+  await waitForAssetBase(1500);
 
   // Probe assets — on Android the URL is often wrong
   const ok = await probeAssets();
