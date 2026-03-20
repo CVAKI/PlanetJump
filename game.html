@@ -317,16 +317,19 @@ canvas{display:block;}
 // ═══════════════════════════════════════════════════════════════
 //  ASSET BASE — multi-strategy detection with Android fallback
 // ═══════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════
+//  ASSET BASE URL — detect Streamlit origin from inside srcdoc iframe
+// ═══════════════════════════════════════════════════════════════
 let ASSET_BASE = (() => {
-  // 1. Injected by setup.py at serve time (most reliable)
+  // 1. Injected by app.py at serve-time — always wins
   if(typeof window.__ASSET_BASE__==='string' && window.__ASSET_BASE__)
     return window.__ASSET_BASE__;
-  // 2. ancestorOrigins — Chrome/Edge/Android Chrome in iframes
+  // 2. ancestorOrigins — works on Chrome/Android Chrome in iframes
   try{
     const ao=window.location.ancestorOrigins;
     if(ao && ao.length>0){const o=ao[ao.length-1];if(o&&o!=='null')return o+'/app/static';}
   }catch(e){}
-  // 3. document.referrer — Firefox srcdoc fallback
+  // 3. document.referrer — Firefox fallback
   try{
     const r=document.referrer;
     if(r&&!r.startsWith('about:')){const u=new URL(r);if(u.origin&&u.origin!=='null')return u.origin+'/app/static';}
@@ -334,35 +337,13 @@ let ASSET_BASE = (() => {
   // 4. parent.location — same-origin only
   try{const p=window.parent.location.origin;if(p&&p!=='null')return p+'/app/static';}catch(e){}
   // 5. own origin
-  try{const c=window.location.origin;if(c&&c!=='null'&&c!=='null')return c+'/app/static';}catch(e){}
+  try{const c=window.location.origin;if(c&&c!=='null')return c+'/app/static';}catch(e){}
   return 'http://localhost:8501/app/static';
 })();
 
-// ── postMessage: ask parent for the URL (works even in sandboxed iframes) ──
-let _assetBaseResolved = false;
-window.addEventListener('message', e => {
-  if(e.data && e.data.type==='STREAMLIT_ASSET_BASE' && !_assetBaseResolved){
-    _assetBaseResolved = true;
-    ASSET_BASE = e.data.url;
-  }
-});
-// Ask parent for URL — Streamlit's st.components.v1.html iframe can receive this
-try{ window.parent.postMessage({type:'REQUEST_ASSET_BASE'},'*'); }catch(e){}
-
-// ── Probe a known asset to detect Android URL failures before Phaser starts ──
-let _assetProbeOk = false;
-async function probeAssets(){
-  const testUrl = ASSET_BASE + '/assets/Sprites/Tiles/terrain_grass_block_top.png';
-  try{
-    const r = await fetch(testUrl, {method:'HEAD', cache:'no-cache'});
-    _assetProbeOk = r.ok;
-  }catch(e){ _assetProbeOk = false; }
-  return _assetProbeOk;
-}
-
 function applyAssetFix(){
   const raw = document.getElementById('asset-url').value.trim().replace(/\/+$/,'');
-  if(!raw){ return; }
+  if(!raw) return;
   ASSET_BASE = raw + '/app/static';
   document.getElementById('asset-fix').style.display = 'none';
   document.getElementById('loading').style.display = 'flex';
@@ -741,45 +722,25 @@ document.addEventListener('fullscreenchange', ()=>{
 });
 
 // ── LAUNCH ─────────────────────────────────────────────────
-async function launchGame(){
+function launchGame(){
   document.getElementById('room-lobby').style.display='none';
   document.getElementById('loading').style.display='flex';
   document.getElementById('hud').style.display='block';
   document.getElementById('settings-btn').style.display='flex';
   if(isMobile) document.getElementById('mctrl').style.display='flex';
-
-  // Enter fullscreen immediately on user gesture (game start click)
   enterFS();
-
-  // Probe assets — on Android the URL is often wrong
-  const ok = await probeAssets();
-  if(!ok){
-    // Show manual URL input overlay
-    document.getElementById('loading').style.display='none';
-    document.getElementById('asset-fix').style.display='flex';
-    // Pre-fill with best guess
-    document.getElementById('asset-url').value =
-      ASSET_BASE.replace('/app/static','');
-    return;
-  }
-
   _launchPhaser();
 }
 
 function _launchPhaser(){
-  // On Android use CANVAS renderer — WebGL causes cross-origin texture issues
-  // in some Android WebView / Chrome versions
-  const renderer = isMobile ? Phaser.CANVAS : Phaser.AUTO;
-
+  // Use CANVAS on mobile — avoids WebGL texture cross-origin issues on Android WebView
   const cfg={
-    type: renderer,
+    type: isMobile ? Phaser.CANVAS : Phaser.AUTO,
     parent:'game-container',
     backgroundColor:'#5CA8E0',
     physics:{default:'arcade',arcade:{gravity:{y:GRAVITY},debug:false}},
     scene:[GameScene],
     scale:{mode:Phaser.Scale.RESIZE, autoCenter:Phaser.Scale.CENTER_BOTH},
-    // Android WebView needs these for image loading
-    loader:{crossOrigin:'anonymous'},
   };
   gameInst=new Phaser.Game(cfg);
 }
@@ -855,18 +816,18 @@ class GameScene extends Phaser.Scene{
     this.load.image('ladybug_a',  A+'/Sprites/Enemies/ladybug_walk_a.png');
     this.load.image('ladybug_b',  A+'/Sprites/Enemies/ladybug_walk_b.png');
 
-    // progress & error
+    // progress & errors
     this.load.on('progress',v=>{setLoad(Math.round(v*100),'Loading assets…');});
     this.load.on('complete',()=>{setLoad(100,'Done!');});
     let _errCount=0;
-    this.load.on('loaderror', file=>{
+    this.load.on('loaderror',()=>{
       _errCount++;
       if(_errCount===3){
-        // 3 failures = wrong base URL, show fix overlay
+        // Assets are 404ing — wrong base URL. Show the manual fix overlay.
         document.getElementById('loading').style.display='none';
-        document.getElementById('asset-fix').style.display='flex';
+        const fix=document.getElementById('asset-fix');
         document.getElementById('asset-url').value=ASSET_BASE.replace('/app/static','');
-        if(gameInst){gameInst.destroy(true);gameInst=null;}
+        fix.style.display='flex';
       }
     });
   }
