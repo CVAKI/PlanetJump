@@ -1,0 +1,12 @@
+[server]
+# Required: allows /app/static/ to serve files from the ./static/ folder.
+# Without this, ALL asset requests (images, sounds) return 404.
+enableStaticServing = true
+headless = true
+
+[browser]
+# Prevents the browser from auto-opening a tab every run
+gatherUsageStats = false
+
+[theme]
+base = "dark"

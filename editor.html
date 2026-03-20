@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>🗺️ Planet Jumpers — Level Editor</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+:root{
+  --bg:#12121f;--panel:#1a1a2e;--p2:#1e1e35;--bdr:#2a2a45;
+  --gold:#ffd700;--acc:#4a9eff;--red:#ff5252;--grn:#00e676;
+  --txt:#e0e0f0;--sub:#888;--hov:#252540;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);
+  font-family:'Segoe UI',Arial,sans-serif;color:var(--txt);user-select:none;}
+#app{display:flex;flex-direction:column;height:100vh;}
+#toolbar{height:46px;background:var(--panel);border-bottom:1px solid var(--bdr);
+  display:flex;align-items:center;gap:6px;padding:0 10px;flex-shrink:0;overflow-x:auto;}
+#workspace{display:flex;flex:1;overflow:hidden;}
+#palette{width:220px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--bdr);
+  display:flex;flex-direction:column;overflow:hidden;}
+#cw{flex:1;overflow:hidden;position:relative;cursor:crosshair;}
+#statusbar{height:26px;background:var(--panel);border-top:1px solid var(--bdr);
+  display:flex;align-items:center;padding:0 10px;gap:14px;font-size:11px;color:var(--sub);flex-shrink:0;}
+.tbl{font-size:15px;font-weight:800;color:var(--gold);margin-right:4px;white-space:nowrap;}
+.sep{width:1px;height:22px;background:var(--bdr);margin:0 2px;}
+.tlbl{font-size:11px;color:var(--sub);white-space:nowrap;}
+.tinp{background:var(--p2);border:1px solid var(--bdr);border-radius:6px;color:var(--txt);
+  padding:4px 7px;font-size:12px;outline:none;}
+.tinp:focus{border-color:var(--acc);}
+.tsel{background:var(--p2);border:1px solid var(--bdr);border-radius:6px;color:var(--txt);
+  padding:4px 7px;font-size:12px;outline:none;cursor:pointer;}
+.tsel option{background:#1e1e35;}
+.tbtn{background:var(--p2);border:1px solid var(--bdr);border-radius:6px;color:var(--txt);
+  padding:5px 9px;font-size:12px;font-weight:600;cursor:pointer;transition:all .12s;white-space:nowrap;}
+.tbtn:hover{background:var(--hov);border-color:var(--acc);}
+.tbtn.pri{background:linear-gradient(135deg,#ffd700,#ff9500);color:#000;border:none;}
+.tbtn.dan{border-color:var(--red);color:var(--red);}
+.spc{flex:1;}
+#pal-tools{display:flex;gap:3px;padding:7px 7px 3px;flex-shrink:0;}
+.ptool{flex:1;padding:5px 2px;text-align:center;background:var(--p2);
+  border:1.5px solid var(--bdr);border-radius:6px;font-size:15px;cursor:pointer;transition:all .12s;}
+.ptool:hover,.ptool.active{background:rgba(74,158,255,.2);border-color:var(--acc);}
+#palscroll{flex:1;overflow-y:auto;padding:3px 5px 8px;}
+#palscroll::-webkit-scrollbar{width:3px;}
+#palscroll::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px;}
+.pcat{font-size:9px;font-weight:700;color:var(--sub);letter-spacing:.8px;text-transform:uppercase;
+  margin:7px 2px 3px;padding-bottom:2px;border-bottom:1px solid var(--bdr);}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;margin-bottom:2px;}
+.ptile{width:100%;aspect-ratio:1;min-height:52px;background:var(--p2);border:1.5px solid var(--bdr);
+  border-radius:5px;cursor:pointer;overflow:hidden;display:flex;align-items:center;
+  justify-content:center;transition:border-color .1s;position:relative;}
+.ptile:hover{border-color:var(--acc);}
+.ptile.act{border-color:var(--gold);box-shadow:0 0 8px rgba(255,215,0,.5);}
+.ptile img{width:80%;height:80%;image-rendering:pixelated;object-fit:contain;}
+.ptlbl{position:absolute;bottom:0;left:0;right:0;text-align:center;font-size:6.5px;
+  color:rgba(255,255,255,.75);background:rgba(0,0,0,.55);pointer-events:none;line-height:1.4;}
+#pp{position:fixed;background:var(--panel);border:1px solid var(--bdr);border-radius:10px;
+  padding:13px;z-index:500;display:none;min-width:195px;box-shadow:0 8px 30px rgba(0,0,0,.7);}
+#pp h4{color:var(--gold);font-size:12px;margin-bottom:9px;}
+.ppr{display:flex;align-items:center;gap:7px;margin-bottom:7px;font-size:12px;color:var(--sub);}
+.ppr label{width:66px;}
+.ppr input,.ppr select{flex:1;background:var(--p2);border:1px solid var(--bdr);
+  border-radius:5px;color:var(--txt);padding:3px 6px;font-size:12px;outline:none;}
+.ppbtns{display:flex;gap:5px;margin-top:9px;}
+.ppbtns button{flex:1;padding:5px;border-radius:5px;border:none;font-weight:700;font-size:11px;cursor:pointer;}
+.ppok{background:var(--grn);color:#000;}
+.ppdel{background:var(--red);color:#fff;}
+.ppcan{background:var(--p2);color:var(--txt);border:1px solid var(--bdr)!important;}
+.toast{position:fixed;bottom:38px;left:50%;transform:translateX(-50%) translateY(16px);
+  background:#222;border:1px solid var(--bdr);border-radius:7px;padding:7px 16px;
+  font-size:12px;color:#fff;z-index:999;opacity:0;transition:all .3s;pointer-events:none;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+</style>
+</head>
+<body>
+<div id="app">
+
+<div id="toolbar">
+  <span class="tbl">🗺️ Level Editor</span>
+  <div class="sep"></div>
+  <span class="tlbl">Level:</span>
+  <select class="tsel" id="lvl-sel" onchange="selectLevel(this.value)" style="min-width:120px"></select>
+  <button class="tbtn" onclick="newLevel()">＋ New</button>
+  <button class="tbtn dan" onclick="deleteLevel()">🗑</button>
+  <div class="sep"></div>
+  <span class="tlbl">Name:</span>
+  <input class="tinp" id="lvl-name" style="width:120px" placeholder="Level name…">
+  <span class="tlbl">Theme:</span>
+  <select class="tsel" id="lvl-theme">
+    <option value="grass">🌿 Grass</option>
+    <option value="snow">❄️ Snow</option>
+    <option value="sand">🏜️ Sand</option>
+    <option value="dirt">🌲 Forest</option>
+    <option value="purple">🍄 Mushroom</option>
+  </select>
+  <span class="tlbl">Win:</span>
+  <input class="tinp" id="lvl-win" type="number" value="20" min="5" max="99" style="width:52px">
+  <span class="tlbl">Cols:</span>
+  <input class="tinp" id="lvl-cols" type="number" value="68" min="20" max="200" style="width:52px">
+  <div class="spc"></div>
+  <button class="tbtn" onclick="undo()" title="Ctrl+Z">↩</button>
+  <button class="tbtn" onclick="redo()" title="Ctrl+Y">↪</button>
+  <div class="sep"></div>
+  <button class="tbtn pri" onclick="saveLevel()">💾 Save</button>
+</div>
+
+<div id="workspace">
+  <div id="palette">
+    <div id="pal-tools">
+      <div class="ptool active" id="tool-paint" onclick="setTool('paint')" title="Paint (P)">✏️</div>
+      <div class="ptool" id="tool-erase" onclick="setTool('erase')" title="Erase (E)">🧹</div>
+      <div class="ptool" id="tool-fill"  onclick="setTool('fill')"  title="Fill Row (F)">🪣</div>
+      <div class="ptool" id="tool-pan"   onclick="setTool('pan')"   title="Pan (Space)">✋</div>
+    </div>
+    <div id="palscroll"></div>
+  </div>
+  <div id="cw"><canvas id="canvas"></canvas></div>
+</div>
+
+<div id="statusbar">
+  <span>Zoom: <b id="st-z">100%</b></span>
+  <span>Cell: <b id="st-c">—</b></span>
+  <span>Tiles: <b id="st-t">0</b></span>
+  <span>Objects: <b id="st-o">0</b></span>
+  <span style="flex:1"></span>
+  <button class="tbtn" style="padding:2px 7px" onclick="changeZoom(-0.25)">−</button>
+  <button class="tbtn" style="padding:2px 7px" onclick="changeZoom(0)">Reset</button>
+  <button class="tbtn" style="padding:2px 7px" onclick="changeZoom(0.25)">+</button>
+  <div class="sep"></div>
+  <span style="font-size:10px;color:var(--sub)">LClick/drag=paint · RClick=erase · Scroll=zoom · Middle-drag=pan · Ctrl+Z=undo</span>
+</div>
+</div>
+
+<div id="pp">
+  <h4>⚙️ Enemy Settings</h4>
+  <div class="ppr"><label>Patrol cells:</label><input type="number" id="pp-pat" value="4" min="1" max="40"></div>
+  <div class="ppr"><label>Type:</label>
+    <select id="pp-type" style="background:var(--p2);border:1px solid var(--bdr);border-radius:5px;color:var(--txt);padding:3px 6px;font-size:12px;outline:none">
+      <option value="slime">🟢 Slime</option>
+      <option value="ladybug">🔴 Ladybug</option>
+      <option value="bee">🐝 Bee</option>
+    </select>
+  </div>
+  <div class="ppbtns">
+    <button class="ppok"  onclick="confirmPatrol()">✓ OK</button>
+    <button class="ppdel" onclick="deleteObj()">🗑 Del</button>
+    <button class="ppcan tbtn" onclick="closePatrol()">✕</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+'use strict';
+// ── ASSET BASE ──────────────────────────────────────────────
+const ASSET_BASE=(()=>{
+  // 1. Injected at serve-time by setup.py (most reliable)
+  if(typeof window.__ASSET_BASE__==='string'&&window.__ASSET_BASE__)return window.__ASSET_BASE__;
+  // 2. ancestorOrigins: set by browser for srcdoc/sandboxed iframes (Chrome, Edge, Safari)
+  try{
+    const ao=window.location.ancestorOrigins;
+    if(ao&&ao.length>0){const o=ao[ao.length-1];if(o&&o!=='null')return o+'/app/static';}
+  }catch(e){}
+  // 3. document.referrer (Firefox fallback for srcdoc iframes)
+  try{
+    const r=document.referrer;
+    if(r&&!r.startsWith('about:')){const u=new URL(r);if(u.origin&&u.origin!=='null')return u.origin+'/app/static';}
+  }catch(e){}
+  // 4. parent.location (same-origin sandboxed Streamlit iframes)
+  try{const p=window.parent.location.origin;if(p&&p!=='null')return p+'/app/static';}catch(e){}
+  // 5. own origin (served directly from a server)
+  try{const c=window.location.origin;if(c&&c!=='null')return c+'/app/static';}catch(e){}
+  // 6. last resort
+  return 'http://localhost:8501/app/static';
+})();
+const A=ASSET_BASE+'/assets/Sprites';
+
+// ── FIREBASE ────────────────────────────────────────────────
+firebase.initializeApp({
+  apiKey:"AIzaSyAnHslB00R2CB0nxaIRLVOeEoFXDXzb4E8",
+  authDomain:"pumpii-cvaki.firebaseapp.com",
+  databaseURL:"https://pumpii-cvaki-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"pumpii-cvaki",storageBucket:"pumpii-cvaki.firebasestorage.app",
+  messagingSenderId:"414140775319",appId:"1:414140775319:web:da5d9b40bd788d0c0ca2d2"
+});
+const db=firebase.database();
+
+// ── CONSTANTS ───────────────────────────────────────────────
+const CELL=48, ROWS=13, GND_ROW=10;
+
+// ── TILE CATALOGUE ──────────────────────────────────────────
+const TILES={
+  g_tl:{src:'Tiles/terrain_grass_block_top_left.png',   lb:'◤Top-L', cat:'🌿 Grass Ground',  solid:true},
+  g_t: {src:'Tiles/terrain_grass_block_top.png',         lb:'▀Top',   cat:'🌿 Grass Ground',  solid:true},
+  g_tr:{src:'Tiles/terrain_grass_block_top_right.png',   lb:'◥Top-R', cat:'🌿 Grass Ground',  solid:true},
+  g_ml:{src:'Tiles/terrain_grass_block_left.png',        lb:'▌Mid-L', cat:'🌿 Grass Ground',  solid:true},
+  g_m: {src:'Tiles/terrain_grass_block_center.png',      lb:'■Mid',   cat:'🌿 Grass Ground',  solid:true},
+  g_mr:{src:'Tiles/terrain_grass_block_right.png',       lb:'▐Mid-R', cat:'🌿 Grass Ground',  solid:true},
+  p_l: {src:'Tiles/terrain_grass_horizontal_left.png',   lb:'◄Plat',  cat:'🍃 Grass Platform',solid:true},
+  p_m: {src:'Tiles/terrain_grass_horizontal_middle.png', lb:'═Plat',  cat:'🍃 Grass Platform',solid:true},
+  p_r: {src:'Tiles/terrain_grass_horizontal_right.png',  lb:'Plat►',  cat:'🍃 Grass Platform',solid:true},
+  cl_l:{src:'Tiles/terrain_grass_cloud_left.png',        lb:'☁L',     cat:'☁️ Cloud',         solid:true},
+  cl_m:{src:'Tiles/terrain_grass_cloud_middle.png',      lb:'☁M',     cat:'☁️ Cloud',         solid:true},
+  cl_r:{src:'Tiles/terrain_grass_cloud_right.png',       lb:'☁R',     cat:'☁️ Cloud',         solid:true},
+  s_tl:{src:'Tiles/terrain_snow_block_top_left.png',     lb:'◤Top-L', cat:'❄️ Snow Ground',   solid:true},
+  s_t: {src:'Tiles/terrain_snow_block_top.png',           lb:'▀Top',   cat:'❄️ Snow Ground',   solid:true},
+  s_tr:{src:'Tiles/terrain_snow_block_top_right.png',     lb:'◥Top-R', cat:'❄️ Snow Ground',   solid:true},
+  s_ml:{src:'Tiles/terrain_snow_block_left.png',          lb:'▌Mid-L', cat:'❄️ Snow Ground',   solid:true},
+  s_m: {src:'Tiles/terrain_snow_block_center.png',        lb:'■Mid',   cat:'❄️ Snow Ground',   solid:true},
+  s_mr:{src:'Tiles/terrain_snow_block_right.png',         lb:'▐Mid-R', cat:'❄️ Snow Ground',   solid:true},
+  sp_l:{src:'Tiles/terrain_snow_horizontal_left.png',     lb:'◄Plat',  cat:'❄️ Snow Platform', solid:true},
+  sp_m:{src:'Tiles/terrain_snow_horizontal_middle.png',   lb:'═Plat',  cat:'❄️ Snow Platform', solid:true},
+  sp_r:{src:'Tiles/terrain_snow_horizontal_right.png',    lb:'Plat►',  cat:'❄️ Snow Platform', solid:true},
+  sd_tl:{src:'Tiles/terrain_sand_block_top_left.png',    lb:'◤Top-L', cat:'🏜️ Sand Ground',   solid:true},
+  sd_t: {src:'Tiles/terrain_sand_block_top.png',          lb:'▀Top',   cat:'🏜️ Sand Ground',   solid:true},
+  sd_tr:{src:'Tiles/terrain_sand_block_top_right.png',    lb:'◥Top-R', cat:'🏜️ Sand Ground',   solid:true},
+  sd_m: {src:'Tiles/terrain_sand_block_center.png',       lb:'■Mid',   cat:'🏜️ Sand Ground',   solid:true},
+  sdp_l:{src:'Tiles/terrain_sand_horizontal_left.png',   lb:'◄Plat',  cat:'🏜️ Sand Platform', solid:true},
+  sdp_m:{src:'Tiles/terrain_sand_horizontal_middle.png', lb:'═Plat',  cat:'🏜️ Sand Platform', solid:true},
+  sdp_r:{src:'Tiles/terrain_sand_horizontal_right.png',  lb:'Plat►',  cat:'🏜️ Sand Platform', solid:true},
+  cg:{src:'Tiles/coin_gold.png',  lb:'Gold',  cat:'🪙 Coins',solid:false},
+  cs:{src:'Tiles/coin_silver.png',lb:'Silver',cat:'🪙 Coins',solid:false},
+  cb:{src:'Tiles/coin_bronze.png',lb:'Bronze',cat:'🪙 Coins',solid:false},
+};
+const OBJS={
+  slime:  {src:'Enemies/slime_normal_walk_a.png',lb:'Slime',  cat:'👾 Enemies',col:'#8BC34A'},
+  ladybug:{src:'Enemies/ladybug_walk_a.png',     lb:'Ladybug',cat:'👾 Enemies',col:'#F44336'},
+  bee:    {src:'Enemies/bee_a.png',              lb:'Bee',    cat:'👾 Enemies',col:'#FFC107'},
+  spawn:  {src:'Characters/character_pink_idle.png',lb:'Spawn',cat:'⭐ Special',col:'#9C27B0'},
+};
+
+// ── THEME SKY COLORS ────────────────────────────────────────
+const SKIES={
+  grass:['#5CA8E0','#87CEEB'],snow:['#B8D8F0','#8AB9D9'],
+  sand:['#F4C264','#D4924A'],dirt:['#2D5A3D','#1A3A28'],purple:['#3A1050','#1A0A2E'],
+};
+
+// ── STATE ───────────────────────────────────────────────────
+let level=mkLv();
+let levels={},currentId=null;
+let tool='paint',activeTile='g_t',activeIsObj=false;
+let zoom=1,panX=20,panY=20;
+let hoverC=-1,hoverR=-1;
+let painting=false,paintMode='place';
+let isPanning=false,panSX=0,panSY=0,panSPX=0,panSPY=0;
+let history=[],histIdx=-1;
+let patrolIdx=null;
+
+function mkLv(name){return{
+  name:name||'New Level',theme:'grass',bgKey:'bg_hills',
+  winScore:20,cols:68,rows:ROWS,tiles:{},objects:[]
+};}
+
+// ── IMAGE CACHE ─────────────────────────────────────────────
+const imgs={};
+function loadImg(k,src){
+  if(imgs[k])return imgs[k];
+  const i=new Image();i.src=A+'/'+src;i.onload=()=>redraw();imgs[k]=i;return i;
+}
+function preloadAll(){
+  Object.entries(TILES).forEach(([k,v])=>loadImg(k,v.src));
+  Object.entries(OBJS).forEach(([k,v])=>loadImg(k,v.src));
+}
+
+// ── CANVAS ──────────────────────────────────────────────────
+let canvas,ctx,W,H,needsRedraw=true;
+function redraw(){needsRedraw=true;}
+
+function initCanvas(){
+  canvas=document.getElementById('canvas');
+  ctx=canvas.getContext('2d');
+  new ResizeObserver(()=>{
+    const w=document.getElementById('cw');
+    W=w.clientWidth;H=w.clientHeight;
+    canvas.width=W;canvas.height=H;redraw();
+  }).observe(document.getElementById('cw'));
+  W=document.getElementById('cw').clientWidth;
+  H=document.getElementById('cw').clientHeight;
+  canvas.width=W;canvas.height=H;
+}
+
+function renderLoop(){
+  if(needsRedraw){drawAll();needsRedraw=false;}
+  requestAnimationFrame(renderLoop);
+}
+
+// ── DRAWING ─────────────────────────────────────────────────
+function drawAll(){
+  ctx.clearRect(0,0,W,H);
+  const cp=CELL*zoom;
+
+  // Sky
+  const sk=ctx.createLinearGradient(0,0,0,H);
+  const sc=SKIES[level.theme]||SKIES.grass;
+  sk.addColorStop(0,sc[0]);sk.addColorStop(1,sc[1]);
+  ctx.fillStyle=sk;ctx.fillRect(0,0,W,H);
+
+  // World outline
+  ctx.strokeStyle='rgba(255,255,255,.07)';ctx.lineWidth=1;
+  ctx.strokeRect(panX,panY,level.cols*cp,ROWS*cp);
+
+  // Grid lines
+  const c0=Math.max(0,Math.floor(-panX/cp));
+  const c1=Math.min(level.cols,Math.ceil((W-panX)/cp)+1);
+  const r0=Math.max(0,Math.floor(-panY/cp));
+  const r1=Math.min(ROWS,Math.ceil((H-panY)/cp)+1);
+  ctx.strokeStyle='rgba(255,255,255,.05)';ctx.lineWidth=0.5;
+  for(let c=c0;c<=c1;c++){
+    const x=c*cp+panX;
+    ctx.beginPath();ctx.moveTo(x,r0*cp+panY);ctx.lineTo(x,r1*cp+panY);ctx.stroke();
+  }
+  for(let r=r0;r<=r1;r++){
+    const y=r*cp+panY;
+    ctx.beginPath();ctx.moveTo(c0*cp+panX,y);ctx.lineTo(c1*cp+panX,y);ctx.stroke();
+  }
+
+  // Ground row guide line
+  ctx.strokeStyle='rgba(255,255,0,.12)';ctx.lineWidth=1;ctx.setLineDash([6,4]);
+  ctx.beginPath();ctx.moveTo(panX,(GND_ROW)*cp+panY);ctx.lineTo(panX+level.cols*cp,(GND_ROW)*cp+panY);ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Tiles
+  for(let r=r0;r<r1;r++){
+    for(let c=c0;c<c1;c++){
+      const tt=level.tiles[c+','+r];if(!tt)continue;
+      const sx=c*cp+panX,sy=r*cp+panY;
+      const def=TILES[tt],im=imgs[tt];
+      if(im&&im.complete&&im.naturalWidth>0){ctx.drawImage(im,sx,sy,cp,cp);}
+      else{
+        ctx.fillStyle=def?(def.solid?'#4a7c3a':'#c8a820'):'#555';
+        ctx.fillRect(sx+1,sy+1,cp-2,cp-2);
+        if(cp>20){
+          ctx.fillStyle='rgba(255,255,255,.5)';ctx.textAlign='center';
+          ctx.font=`${Math.max(7,cp*.3)}px sans-serif`;
+          ctx.fillText(tt.substring(0,3),sx+cp/2,sy+cp/2+3);
+        }
+      }
+    }
+  }
+
+  // Objects
+  level.objects.forEach((obj,idx)=>{
+    const sx=obj.col*cp+panX,sy=obj.row*cp+panY;
+    if(sx+cp<0||sx>W||sy+cp<0||sy>H)return;
+    const def=OBJS[obj.type];
+    if(obj.type!=='spawn'&&obj.patrol){
+      const lx=(obj.col-obj.patrol)*cp+panX;
+      const rx=(obj.col+obj.patrol+1)*cp+panX;
+      ctx.fillStyle=(def?def.col:'#aaa')+'30';
+      ctx.fillRect(lx,sy,rx-lx,cp);
+      ctx.strokeStyle=(def?def.col:'#aaa')+'70';
+      ctx.lineWidth=1;ctx.strokeRect(lx,sy,rx-lx,cp);
+    }
+    if(obj.type==='spawn'){
+      ctx.strokeStyle='#9C27B0';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(sx+cp/2,sy+cp/2,cp*.5,0,Math.PI*2);ctx.stroke();
+      ctx.fillStyle='rgba(156,39,176,.2)';ctx.fill();
+    }
+    const im=imgs[obj.type];
+    if(im&&im.complete&&im.naturalWidth>0){ctx.drawImage(im,sx,sy,cp,cp);}
+    else{ctx.fillStyle=def?def.col:'#aaa';ctx.fillRect(sx+4,sy+4,cp-8,cp-8);}
+    if(patrolIdx===idx){
+      ctx.strokeStyle='#ffd700';ctx.lineWidth=2;
+      ctx.strokeRect(sx+1,sy+1,cp-2,cp-2);
+    }
+  });
+
+  // Hover
+  if(hoverC>=0&&hoverR>=0&&hoverC<level.cols&&hoverR<ROWS){
+    const sx=hoverC*cp+panX,sy=hoverR*cp+panY;
+    ctx.fillStyle=tool==='erase'?'rgba(255,82,82,.3)':tool==='fill'?'rgba(255,215,0,.2)':'rgba(74,158,255,.25)';
+    ctx.fillRect(sx,sy,cp,cp);
+    ctx.strokeStyle=tool==='erase'?'#ff5252':tool==='fill'?'#ffd700':'#4a9eff';
+    ctx.lineWidth=1.5;ctx.strokeRect(sx,sy,cp,cp);
+    if(tool==='paint'){
+      const pi=imgs[activeTile];
+      if(pi&&pi.complete){ctx.globalAlpha=0.5;ctx.drawImage(pi,sx,sy,cp,cp);ctx.globalAlpha=1;}
+    }
+  }
+
+  // Column numbers
+  if(zoom>=0.55){
+    ctx.fillStyle='rgba(255,255,255,.22)';ctx.textAlign='center';
+    ctx.font=`${Math.max(7,9*zoom)}px monospace`;
+    const step=Math.max(1,Math.floor(5/zoom));
+    for(let c=c0;c<c1;c+=step){
+      ctx.fillText(c,c*cp+cp/2+panX,panY-3);
+    }
+  }
+}
+
+// ── PALETTE ─────────────────────────────────────────────────
+function buildPalette(){
+  const scr=document.getElementById('palscroll');scr.innerHTML='';
+  const cats={};
+  Object.entries(TILES).forEach(([k,v])=>{(cats[v.cat]=cats[v.cat]||[]).push({k,v,isObj:false});});
+  Object.entries(OBJS).forEach(([k,v])=>{(cats[v.cat]=cats[v.cat]||[]).push({k,v,isObj:true});});
+  Object.entries(cats).forEach(([cat,items])=>{
+    const lbl=document.createElement('div');lbl.className='pcat';lbl.textContent=cat;scr.appendChild(lbl);
+    const g=document.createElement('div');g.className='pgrid';
+    items.forEach(({k,v,isObj})=>{
+      const el=document.createElement('div');el.className='ptile';el.title=v.lb;el.dataset.k=k;el.dataset.o=isObj?1:0;
+      const im=document.createElement('img');im.src=A+'/'+v.src;im.alt=v.lb;el.appendChild(im);
+      const lb=document.createElement('div');lb.className='ptlbl';lb.textContent=v.lb.replace(/[◤◥▀▌■▐═►◄☁]/,'').trim()||v.lb;
+      el.appendChild(lb);
+      el.addEventListener('click',()=>selectPTile(k,isObj,el));
+      g.appendChild(el);
+    });
+    scr.appendChild(g);
+  });
+  // Auto-select first
+  const first=scr.querySelector('.ptile');if(first)first.click();
+}
+
+function selectPTile(k,isObj,el){
+  document.querySelectorAll('.ptile').forEach(e=>e.classList.remove('act'));
+  el.classList.add('act');activeTile=k;activeIsObj=isObj;
+  if(tool==='erase'||tool==='pan')setTool('paint');
+  redraw();
+}
+
+// ── TOOLS ───────────────────────────────────────────────────
+function setTool(t){
+  tool=t;
+  document.querySelectorAll('.ptool').forEach(el=>el.classList.remove('active'));
+  const el=document.getElementById('tool-'+t);if(el)el.classList.add('active');
+  canvas.style.cursor=t==='pan'?'grab':t==='erase'?'cell':'crosshair';
+  redraw();
+}
+
+// ── COORDS ──────────────────────────────────────────────────
+function s2c(sx,sy){const cp=CELL*zoom;return{col:Math.floor((sx-panX)/cp),row:Math.floor((sy-panY)/cp)};}
+function valid(c,r){return c>=0&&c<level.cols&&r>=0&&r<ROWS;}
+
+// ── HISTORY ─────────────────────────────────────────────────
+function snap(){
+  const s={tiles:{...level.tiles},objects:level.objects.map(o=>({...o}))};
+  history=history.slice(0,histIdx+1);history.push(s);
+  if(history.length>40)history.shift();histIdx=history.length-1;
+}
+function undo(){if(histIdx<=0)return;histIdx--;apply(history[histIdx]);}
+function redo(){if(histIdx>=history.length-1)return;histIdx++;apply(history[histIdx]);}
+function apply(s){level.tiles={...s.tiles};level.objects=s.objects.map(o=>({...o}));redraw();}
+
+// ── PLACE / ERASE ───────────────────────────────────────────
+function placeAt(c,r,mode){
+  if(!valid(c,r))return;
+  const k=c+','+r;
+  if(mode==='erase'){
+    if(level.tiles[k])delete level.tiles[k];
+    else{const i=level.objects.findIndex(o=>o.col===c&&o.row===r);if(i>=0){level.objects.splice(i,1);}}
+  }else{
+    if(activeIsObj){
+      level.objects=level.objects.filter(o=>!(o.col===c&&o.row===r));
+      const no={col:c,row:r,type:activeTile};
+      if(activeTile!=='spawn')no.patrol=4;
+      level.objects.push(no);
+    }else{level.tiles[k]=activeTile;}
+  }
+  redraw();
+}
+function fillRow(c,r,mode){
+  if(!valid(c,r))return;
+  for(let i=0;i<level.cols;i++){
+    const k=i+','+r;
+    if(mode==='erase')delete level.tiles[k];
+    else if(!activeIsObj)level.tiles[k]=activeTile;
+  }
+  redraw();
+}
+
+// ── MOUSE ───────────────────────────────────────────────────
+let lastPC=null;
+
+function getOffset(e){
+  const r=canvas.getBoundingClientRect();
+  return{ox:e.clientX-r.left,oy:e.clientY-r.top};
+}
+
+canvas.addEventListener('mousedown',e=>{
+  e.preventDefault();
+  const {ox,oy}=getOffset(e);
+  const {col,row}=s2c(ox,oy);
+  if(e.button===1||tool==='pan'){
+    isPanning=true;panSX=e.clientX;panSY=e.clientY;panSPX=panX;panSPY=panY;
+    canvas.style.cursor='grabbing';return;
+  }
+  const mode=e.button===2||tool==='erase'?'erase':'place';
+  // Click existing object → open patrol popup
+  if(mode==='place'&&!activeIsObj&&tool!=='fill'){
+    const idx=level.objects.findIndex(o=>o.col===col&&o.row===row);
+    if(idx>=0){openPatrol(idx,e.clientX,e.clientY);return;}
+  }
+  snap();painting=true;paintMode=mode;lastPC=null;
+  if(tool==='fill'){fillRow(col,row,mode);return;}
+  placeAt(col,row,mode);lastPC={col,row};
+});
+
+canvas.addEventListener('mousemove',e=>{
+  const {ox,oy}=getOffset(e);
+  const {col,row}=s2c(ox,oy);
+  if(isPanning){
+    panX=panSPX+(e.clientX-panSX);panY=panSPY+(e.clientY-panSY);
+    clamp();redraw();updateSt();return;
+  }
+  hoverC=col;hoverR=row;
+  if(painting&&(!lastPC||lastPC.col!==col||lastPC.row!==row)){
+    placeAt(col,row,paintMode);lastPC={col,row};
+  }
+  redraw();updateSt();
+});
+
+canvas.addEventListener('mouseup',()=>{painting=false;if(isPanning){isPanning=false;canvas.style.cursor=tool==='pan'?'grab':'crosshair';}});
+canvas.addEventListener('mouseleave',()=>{hoverC=-1;hoverR=-1;painting=false;isPanning=false;redraw();updateSt();});
+canvas.addEventListener('contextmenu',e=>e.preventDefault());
+
+canvas.addEventListener('wheel',e=>{
+  e.preventDefault();
+  const f=e.deltaY<0?1.15:1/1.15;
+  const nz=Math.max(0.2,Math.min(4,zoom*f));
+  const {ox,oy}=getOffset(e);
+  panX=ox-(ox-panX)*(nz/zoom);panY=oy-(oy-panY)*(nz/zoom);
+  zoom=nz;clamp();redraw();updateSt();
+},{passive:false});
+
+// Touch
+let lt=null,ltd=null;
+canvas.addEventListener('touchstart',e=>{
+  e.preventDefault();
+  if(e.touches.length===1){
+    const t=e.touches[0],r=canvas.getBoundingClientRect();
+    const ox=t.clientX-r.left,oy=t.clientY-r.top;
+    const {col,row}=s2c(ox,oy);
+    hoverC=col;hoverR=row;
+    snap();painting=true;paintMode='place';placeAt(col,row,'place');lastPC={col,row};
+    lt={x:t.clientX,y:t.clientY};
+  }else if(e.touches.length===2){
+    painting=false;
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    ltd=Math.hypot(dx,dy);
+    lt={x:(e.touches[0].clientX+e.touches[1].clientX)/2,y:(e.touches[0].clientY+e.touches[1].clientY)/2};
+  }
+  redraw();updateSt();
+},{passive:false});
+
+canvas.addEventListener('touchmove',e=>{
+  e.preventDefault();
+  if(e.touches.length===1&&lt){
+    const t=e.touches[0];
+    if(tool==='pan'){panX+=t.clientX-lt.x;panY+=t.clientY-lt.y;clamp();}
+    else if(painting){
+      const r=canvas.getBoundingClientRect();
+      const ox=t.clientX-r.left,oy=t.clientY-r.top;
+      const {col,row}=s2c(ox,oy);
+      if(!lastPC||lastPC.col!==col||lastPC.row!==row){placeAt(col,row,paintMode);lastPC={col,row};}
+      hoverC=col;hoverR=row;
+    }
+    lt={x:t.clientX,y:t.clientY};
+  }else if(e.touches.length===2){
+    const dx=e.touches[0].clientX-e.touches[1].clientX;
+    const dy=e.touches[0].clientY-e.touches[1].clientY;
+    const d=Math.hypot(dx,dy);
+    const mx=(e.touches[0].clientX+e.touches[1].clientX)/2;
+    const my=(e.touches[0].clientY+e.touches[1].clientY)/2;
+    const r=canvas.getBoundingClientRect();
+    if(ltd){
+      const f=d/ltd,nz=Math.max(0.2,Math.min(4,zoom*f));
+      const ox=mx-r.left,oy=my-r.top;
+      panX=ox-(ox-panX)*(nz/zoom);panY=oy-(oy-panY)*(nz/zoom);zoom=nz;clamp();
+    }
+    if(lt){panX+=mx-lt.x;panY+=my-lt.y;clamp();}
+    ltd=d;lt={x:mx,y:my};
+  }
+  redraw();updateSt();
+},{passive:false});
+
+canvas.addEventListener('touchend',e=>{e.preventDefault();painting=false;lt=null;ltd=null;},{passive:false});
+
+function clamp(){
+  const cp=CELL*zoom;
+  panX=Math.min(80,Math.max(W-level.cols*cp-80,panX));
+  panY=Math.min(80,Math.max(H-ROWS*cp-80,panY));
+}
+
+function changeZoom(d){
+  const nz=d===0?1:Math.max(0.2,Math.min(4,zoom+d));
+  panX=W/2-(W/2-panX)*(nz/zoom);panY=H/2-(H/2-panY)*(nz/zoom);
+  zoom=nz;clamp();redraw();updateSt();
+}
+
+// ── KEYBOARD ────────────────────────────────────────────────
+document.addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT'||e.target.tagName==='SELECT')return;
+  if(e.ctrlKey&&e.key==='z'){e.preventDefault();undo();}
+  if(e.ctrlKey&&e.key==='y'){e.preventDefault();redo();}
+  if(e.ctrlKey&&e.key==='s'){e.preventDefault();saveLevel();}
+  if(e.key==='p'||e.key==='P')setTool('paint');
+  if(e.key==='e'||e.key==='E')setTool('erase');
+  if(e.key==='f'||e.key==='F')setTool('fill');
+  if(e.key===' '){e.preventDefault();setTool('pan');}
+});
+document.addEventListener('keyup',e=>{if(e.key===' '&&tool==='pan')setTool('paint');});
+
+// ── PATROL POPUP ────────────────────────────────────────────
+function openPatrol(idx,cx,cy){
+  patrolIdx=idx;
+  const obj=level.objects[idx];
+  document.getElementById('pp-pat').value=obj.patrol||4;
+  document.getElementById('pp-type').value=obj.type||'slime';
+  const pp=document.getElementById('pp');pp.style.display='block';
+  pp.style.left=Math.min(cx,window.innerWidth-210)+'px';
+  pp.style.top=Math.min(cy,window.innerHeight-170)+'px';
+  redraw();
+}
+function confirmPatrol(){
+  if(patrolIdx===null)return;snap();
+  level.objects[patrolIdx].patrol=parseInt(document.getElementById('pp-pat').value)||4;
+  level.objects[patrolIdx].type=document.getElementById('pp-type').value;
+  closePatrol();
+}
+function deleteObj(){
+  if(patrolIdx===null)return;snap();
+  level.objects.splice(patrolIdx,1);closePatrol();
+}
+function closePatrol(){patrolIdx=null;document.getElementById('pp').style.display='none';redraw();}
+
+// ── STATUS BAR ──────────────────────────────────────────────
+function updateSt(){
+  document.getElementById('st-z').textContent=Math.round(zoom*100)+'%';
+  document.getElementById('st-c').textContent=hoverC>=0?`(${hoverC}, ${hoverR})`:'—';
+  document.getElementById('st-t').textContent=Object.keys(level.tiles).length;
+  document.getElementById('st-o').textContent=level.objects.length;
+}
+
+// ── TOOLBAR SYNC ────────────────────────────────────────────
+function syncTB(){
+  document.getElementById('lvl-name').value=level.name;
+  document.getElementById('lvl-theme').value=level.theme;
+  document.getElementById('lvl-win').value=level.winScore;
+  document.getElementById('lvl-cols').value=level.cols;
+}
+
+// ── FIREBASE LEVEL MANAGEMENT ───────────────────────────────
+async function loadLevels(){
+  try{
+    const snap=await db.ref('customLevels').once('value');
+    levels=snap.val()||{};populateDrop();
+  }catch(e){toast('Firebase error: '+e.message);}
+}
+
+function populateDrop(){
+  const sel=document.getElementById('lvl-sel');
+  sel.innerHTML='<option value="">— select level —</option>';
+  Object.entries(levels).sort((a,b)=>(b[1].updatedAt||0)-(a[1].updatedAt||0)).forEach(([id,lv])=>{
+    const o=document.createElement('option');o.value=id;
+    o.textContent=lv.name+(lv.theme?' ('+lv.theme+')':'');sel.appendChild(o);
+  });
+  if(currentId)sel.value=currentId;
+}
+
+function selectLevel(id){
+  if(!id)return;currentId=id;
+  const lv=levels[id];if(!lv)return;
+  level={
+    name:lv.name||'Level',theme:lv.theme||'grass',bgKey:lv.bgKey||'bg_hills',
+    winScore:lv.winScore||20,cols:lv.cols||68,rows:ROWS,
+    tiles:lv.tiles?{...lv.tiles}:{},objects:lv.objects?lv.objects.map(o=>({...o})):[],
+  };
+  snap();syncTB();centerView();redraw();toast('Loaded: '+level.name);
+}
+
+async function saveLevel(){
+  level.name=document.getElementById('lvl-name').value.trim()||'Level';
+  level.theme=document.getElementById('lvl-theme').value;
+  level.winScore=parseInt(document.getElementById('lvl-win').value)||20;
+  level.cols=parseInt(document.getElementById('lvl-cols').value)||68;
+  level.bgKey='bg_'+(level.theme==='dirt'?'trees':level.theme==='purple'?'mushrooms':level.theme==='sand'?'desert':level.theme);
+  level.updatedAt=Date.now();
+  if(!currentId)currentId='lvl_'+Date.now();
+  try{
+    await db.ref('customLevels/'+currentId).set(level);
+    levels[currentId]={...level};populateDrop();
+    document.getElementById('lvl-sel').value=currentId;
+    toast('✅ Saved: '+level.name);
+  }catch(e){toast('Save error: '+e.message);}
+}
+
+function newLevel(){
+  currentId=null;level=mkLv();snap();syncTB();centerView();redraw();
+  document.getElementById('lvl-sel').value='';toast('New level');
+}
+
+async function deleteLevel(){
+  if(!currentId){toast('No level selected');return;}
+  if(!confirm('Delete "'+level.name+'"?'))return;
+  await db.ref('customLevels/'+currentId).remove();
+  delete levels[currentId];currentId=null;populateDrop();newLevel();toast('Deleted');
+}
+
+function centerView(){
+  const cp=CELL*zoom;
+  panX=Math.max(20,(W-level.cols*cp)/2);
+  panY=Math.max(20,(H-ROWS*cp)/2);
+}
+
+function toast(msg){
+  const el=document.getElementById('toast');el.textContent=msg;
+  el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+// ── INIT ────────────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded',()=>{
+  initCanvas();buildPalette();preloadAll();
+  snap();syncTB();centerView();
+  renderLoop();setInterval(updateSt,250);
+  loadLevels();
+  toast('🗺️ Drag tiles onto the canvas to build your level!');
+});
+window.addEventListener('resize',()=>redraw());
+</script>
+</body>
+</html>

@@ -1,0 +1,1277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+<title>🪐 Planet Jumpers: Coin Rush</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a1a2e;
+  font-family:'Segoe UI',Arial,sans-serif;touch-action:none;user-select:none;-webkit-user-select:none;}
+
+/* ── LOADING ── */
+#loading{position:fixed;inset:0;background:#1a1a2e;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:999;color:#fff;}
+#loading .planet{font-size:60px;animation:spin 3s linear infinite;}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+#loading h2{font-size:28px;font-weight:900;color:#ffd700;margin:12px 0 6px;letter-spacing:2px;}
+#loading p{color:#888;font-size:14px;margin-bottom:18px;}
+.bar-outer{width:220px;height:8px;background:rgba(255,255,255,0.1);border-radius:4px;overflow:hidden;}
+.bar-inner{height:100%;background:linear-gradient(90deg,#ffd700,#ff9500);border-radius:4px;
+  transition:width .15s;width:0%;}
+
+/* ── LOBBY ── */
+#lobby{position:fixed;inset:0;background:linear-gradient(150deg,#0f0c29,#302b63,#24243e);
+  display:none;flex-direction:column;align-items:center;justify-content:center;z-index:90;padding:20px;}
+.logo{font-size:clamp(28px,7vw,52px);font-weight:900;color:#fff;
+  text-shadow:0 0 30px rgba(255,200,0,.8);letter-spacing:2px;margin-bottom:4px;}
+.tagline{font-size:clamp(12px,2.5vw,15px);color:#999;margin-bottom:28px;}
+.card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);
+  border-radius:18px;padding:24px;width:min(420px,95vw);backdrop-filter:blur(14px);}
+.section-label{color:#ffd700;font-size:11px;text-transform:uppercase;letter-spacing:1.5px;
+  font-weight:700;margin-bottom:10px;}
+.input-row{display:flex;gap:8px;margin-bottom:10px;}
+input,select{background:rgba(255,255,255,.08);border:1.5px solid rgba(255,255,255,.18);
+  border-radius:9px;color:#fff;padding:10px 14px;font-size:15px;flex:1;outline:none;transition:border-color .2s;}
+input:focus,select:focus{border-color:#ffd700;}
+input::placeholder{color:#555;}
+select option{background:#302b63;color:#fff;}
+.tabs{display:flex;gap:4px;margin-bottom:14px;}
+.tab{flex:1;padding:9px;background:rgba(255,255,255,.05);border:1.5px solid rgba(255,255,255,.1);
+  border-radius:8px;color:#888;cursor:pointer;text-align:center;font-size:13px;font-weight:700;transition:all .15s;}
+.tab.active{background:rgba(255,215,0,.15);border-color:#ffd700;color:#ffd700;}
+.tab-content{display:none;}.tab-content.active{display:block;}
+.btn{background:linear-gradient(135deg,#ffd700,#ff9500);color:#000;border:none;border-radius:9px;
+  padding:11px 18px;font-size:14px;font-weight:800;cursor:pointer;transition:transform .1s;white-space:nowrap;
+  letter-spacing:.3px;}
+.btn:active{transform:scale(.96);}
+.btn.wide{width:100%;padding:13px;font-size:16px;border-radius:11px;}
+.btn.ghost{background:rgba(255,255,255,.08);color:#ccc;border:1.5px solid rgba(255,255,255,.15);}
+.btn.green{background:linear-gradient(135deg,#00e676,#00c853);color:#000;}
+.color-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:4px;}
+.c-btn{width:38px;height:38px;border-radius:50%;border:3px solid transparent;cursor:pointer;
+  transition:transform .15s,border-color .15s;}
+.c-btn.sel{border-color:#fff;transform:scale(1.18);}
+.err{color:#ff5252;font-size:13px;margin-top:8px;text-align:center;}
+.divider{border:none;border-top:1px solid rgba(255,255,255,.07);margin:14px 0;}
+
+/* ── ROOM LOBBY ── */
+#room-lobby{position:fixed;inset:0;background:linear-gradient(150deg,#0f0c29,#302b63,#24243e);
+  display:none;flex-direction:column;align-items:center;justify-content:center;z-index:90;padding:20px;}
+.code-badge{background:rgba(255,215,0,.12);border:1.5px solid rgba(255,215,0,.4);border-radius:14px;
+  padding:14px 20px;text-align:center;margin-bottom:14px;}
+.code-text{font-size:38px;font-weight:900;color:#ffd700;letter-spacing:8px;}
+.players-box{max-height:160px;overflow-y:auto;margin-bottom:12px;}
+.prow{display:flex;align-items:center;gap:8px;padding:7px 0;
+  border-bottom:1px solid rgba(255,255,255,.05);font-size:14px;color:#ccc;}
+.pdot{width:13px;height:13px;border-radius:50%;flex-shrink:0;}
+
+/* ── HUD ── */
+#hud{position:fixed;top:0;left:0;right:0;display:none;background:rgba(0,0,0,.75);
+  backdrop-filter:blur(6px);padding:6px 12px;z-index:60;pointer-events:none;}
+#hud-inner{display:flex;gap:10px;align-items:center;overflow-x:auto;flex-wrap:nowrap;}
+.hitem{display:flex;align-items:center;gap:5px;background:rgba(255,255,255,.06);
+  border-radius:20px;padding:4px 10px;white-space:nowrap;font-size:13px;color:#fff;}
+.hitem.me{border:1.5px solid #ffd700;background:rgba(255,215,0,.1);}
+.hscore{font-weight:800;color:#ffd700;margin-left:2px;}
+.hlives{font-size:11px;color:#ff8888;margin-left:2px;}
+
+/* ── MOBILE CONTROLS ── */
+#mctrl{position:fixed;bottom:0;left:0;right:0;display:none;justify-content:space-between;
+  align-items:flex-end;padding:10px 14px;padding-bottom:max(10px,env(safe-area-inset-bottom));
+  z-index:60;pointer-events:none;}
+.ctrl-grp{display:flex;gap:8px;pointer-events:all;}
+.cbtn{width:64px;height:64px;border-radius:50%;background:rgba(255,255,255,.14);
+  border:2px solid rgba(255,255,255,.28);display:flex;align-items:center;justify-content:center;
+  font-size:22px;cursor:pointer;-webkit-tap-highlight-color:transparent;
+  transition:background .1s,border-color .1s;user-select:none;-webkit-user-select:none;}
+.cbtn.active{background:rgba(255,215,0,.4);border-color:#ffd700;}
+.cbtn.jump-btn{width:72px;height:72px;background:rgba(255,215,0,.18);
+  border-color:rgba(255,215,0,.5);font-size:26px;}
+
+/* ── WIN SCREEN ── */
+#win-screen{position:fixed;inset:0;background:rgba(0,0,0,.88);display:none;
+  flex-direction:column;align-items:center;justify-content:center;z-index:200;text-align:center;padding:20px;}
+.win-trophy{font-size:72px;animation:bounce .6s ease infinite alternate;}
+@keyframes bounce{from{transform:translateY(0)}to{transform:translateY(-14px)}}
+.win-title{font-size:clamp(32px,9vw,58px);font-weight:900;color:#ffd700;
+  text-shadow:0 0 40px rgba(255,200,0,.8);margin:10px 0;}
+.win-sub{font-size:16px;color:#bbb;margin-bottom:20px;}
+.score-row{padding:5px 0;font-size:15px;color:#ccc;}
+
+/* ── GAME CONTAINER ── */
+#game-container{position:fixed;inset:0;z-index:1;}
+canvas{display:block;}
+
+/* ── SETTINGS PANEL ── */
+#settings-btn{position:fixed;top:8px;right:10px;z-index:80;pointer-events:all;
+  background:rgba(0,0,0,.55);border:1.5px solid rgba(255,255,255,.2);border-radius:8px;
+  color:#fff;font-size:18px;width:34px;height:34px;cursor:pointer;display:none;
+  align-items:center;justify-content:center;transition:background .15s;}
+#settings-btn:hover{background:rgba(255,215,0,.25);border-color:#ffd700;}
+#settings-panel{position:fixed;top:52px;right:10px;z-index:81;display:none;
+  background:rgba(15,15,30,.94);border:1.5px solid rgba(255,255,255,.15);border-radius:14px;
+  padding:16px 18px;min-width:230px;backdrop-filter:blur(12px);
+  box-shadow:0 8px 32px rgba(0,0,0,.6);}
+#settings-panel h3{color:#ffd700;font-size:13px;font-weight:700;letter-spacing:.8px;
+  text-transform:uppercase;margin:0 0 14px;display:flex;align-items:center;gap:6px;}
+.srow{margin-bottom:14px;}
+.srow:last-child{margin-bottom:0;}
+.slbl{display:flex;justify-content:space-between;align-items:center;
+  color:#ccc;font-size:12px;margin-bottom:6px;}
+.slbl b{color:#ffd700;font-size:13px;min-width:36px;text-align:right;}
+.sslider{width:100%;-webkit-appearance:none;appearance:none;height:5px;
+  border-radius:3px;background:rgba(255,255,255,.15);outline:none;cursor:pointer;}
+.sslider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
+  width:17px;height:17px;border-radius:50%;background:linear-gradient(135deg,#ffd700,#ff9500);
+  cursor:pointer;border:2px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.4);}
+.sslider::-moz-range-thumb{width:17px;height:17px;border-radius:50%;
+  background:linear-gradient(135deg,#ffd700,#ff9500);cursor:pointer;border:2px solid #fff;}
+.sreset{width:100%;margin-top:14px;padding:7px;background:rgba(255,255,255,.07);
+  border:1px solid rgba(255,255,255,.15);border-radius:8px;color:#aaa;
+  font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;}
+.sreset:hover{background:rgba(255,215,0,.15);border-color:#ffd700;color:#ffd700;}</style>
+</head>
+<body>
+
+<!-- LOADING -->
+<div id="loading">
+  <div class="planet">🪐</div>
+  <h2>PLANET JUMPERS</h2>
+  <p id="load-txt">Initialising…</p>
+  <div class="bar-outer"><div class="bar-inner" id="load-bar"></div></div>
+</div>
+
+<!-- LOBBY -->
+<div id="lobby">
+  <div class="logo">🪐 Planet Jumpers</div>
+  <div class="tagline">Coin Rush — Real-time Multiplayer Platformer</div>
+  <div class="card">
+    <!-- Character setup -->
+    <div class="section-label">Your Character</div>
+    <div class="input-row" style="margin-bottom:12px;">
+      <input id="pname" type="text" placeholder="Your name…" maxlength="14" value="">
+    </div>
+    <div class="color-row" id="color-row">
+      <div class="c-btn sel" data-c="pink"   style="background:#FF69B4" title="Pink"></div>
+      <div class="c-btn"     data-c="beige"  style="background:#DEB887" title="Beige"></div>
+      <div class="c-btn"     data-c="green"  style="background:#3CB371" title="Green"></div>
+      <div class="c-btn"     data-c="purple" style="background:#9370DB" title="Purple"></div>
+      <div class="c-btn"     data-c="yellow" style="background:#FFD700" title="Yellow"></div>
+    </div>
+    <hr class="divider">
+    <!-- Tabs -->
+    <div class="tabs">
+      <div class="tab active" onclick="switchTab('create')">🚀 Create Room</div>
+      <div class="tab"        onclick="switchTab('join')">🔑 Join Room</div>
+    </div>
+    <div class="tab-content active" id="tc-create">
+      <div class="input-row">
+        <select id="max-p">
+          <option value="2">Max 2 Players</option>
+          <option value="4">Max 4 Players</option>
+          <option value="6">Max 6 Players</option>
+          <option value="8">Max 8 Players</option>
+          <option value="10" selected>Max 10 Players</option>
+        </select>
+      </div>
+      <button class="btn wide" onclick="createRoom()">Create Room</button>
+    </div>
+    <div class="tab-content" id="tc-join">
+      <div class="input-row">
+        <input id="jcode" type="text" placeholder="ROOM CODE" maxlength="6"
+          style="text-transform:uppercase;letter-spacing:5px;font-weight:800;font-size:20px;">
+        <button class="btn" onclick="joinRoom()">Join</button>
+      </div>
+    </div>
+    <div id="lerr" class="err"></div>
+  </div>
+</div>
+
+<!-- ROOM LOBBY -->
+<div id="room-lobby">
+  <div class="logo" style="font-size:clamp(22px,5vw,34px);">🪐 Waiting Room</div>
+  <div class="card" style="max-width:400px;">
+    <div class="code-badge">
+      <div style="color:#888;font-size:11px;letter-spacing:1px;">ROOM CODE — SHARE WITH FRIENDS</div>
+      <div class="code-text" id="rcode-display">------</div>
+    </div>
+    <div class="section-label">Players (<span id="p-count">0</span> / <span id="p-max">10</span>)</div>
+    <div class="players-box" id="plist"></div>
+    <div id="host-zone" style="display:none;margin-top:12px;">
+      <button class="btn green wide" id="start-btn" onclick="hostStart()">▶ Start Game!</button>
+      <div style="color:#888;font-size:12px;text-align:center;margin-top:6px;" id="start-hint">
+        Waiting for players…
+      </div>
+    </div>
+    <div id="guest-zone" style="margin-top:12px;">
+      <div style="color:#888;font-size:13px;text-align:center;">⏳ Waiting for host to start…</div>
+    </div>
+    <button class="btn ghost" style="width:100%;margin-top:12px;" onclick="leaveRoom()">← Leave Room</button>
+  </div>
+</div>
+
+<!-- HUD -->
+<div id="hud"><div id="hud-inner"></div></div>
+
+<!-- SETTINGS BUTTON & PANEL -->
+<button id="settings-btn" onclick="toggleSettings()">⚙️</button>
+<div id="settings-panel">
+  <h3>⚙️ Game Settings</h3>
+  <div class="srow">
+    <div class="slbl"><span>🦘 Jump Power</span><b id="jump-val">720</b></div>
+    <input class="sslider" id="jump-slider" type="range" min="300" max="1200" step="10" value="720"
+      oninput="applyJump(this.value)">
+  </div>
+  <div class="srow">
+    <div class="slbl"><span>🔍 Zoom</span><b id="zoom-val">1.5×</b></div>
+    <input class="sslider" id="zoom-slider" type="range" min="0.5" max="3.0" step="0.05" value="1.5"
+      oninput="applyZoom(this.value)">
+  </div>
+  <div class="srow">
+    <div class="slbl"><span>🌍 Gravity</span><b id="grav-val">950</b></div>
+    <input class="sslider" id="grav-slider" type="range" min="200" max="2000" step="25" value="950"
+      oninput="applyGravity(this.value)">
+  </div>
+  <button class="sreset" onclick="resetSettings()">↺ Reset defaults</button>
+</div>
+
+<!-- WIN SCREEN -->
+<div id="win-screen">
+  <div class="win-trophy">🏆</div>
+  <div class="win-title" id="win-title">You Win!</div>
+  <div class="win-sub" id="win-sub">First to collect 20 coins!</div>
+  <div id="final-scores" style="margin-bottom:24px;"></div>
+  <button class="btn green" style="min-width:200px;font-size:16px;" onclick="backToLobby()">🏠 Back to Lobby</button>
+</div>
+
+<!-- GAME CANVAS -->
+<div id="game-container"></div>
+
+<!-- MOBILE CONTROLS -->
+<div id="mctrl">
+  <div class="ctrl-grp">
+    <div class="cbtn" id="cb-left"
+      ontouchstart="mc('left',true);event.preventDefault()"
+      ontouchend="mc('left',false);event.preventDefault()"
+      ontouchcancel="mc('left',false)">◀</div>
+    <div class="cbtn" id="cb-right"
+      ontouchstart="mc('right',true);event.preventDefault()"
+      ontouchend="mc('right',false);event.preventDefault()"
+      ontouchcancel="mc('right',false)">▶</div>
+  </div>
+  <div class="ctrl-grp">
+    <div class="cbtn jump-btn" id="cb-jump"
+      ontouchstart="mc('jump',true);event.preventDefault()"
+      ontouchend="mc('jump',false);event.preventDefault()"
+      ontouchcancel="mc('jump',false)">⬆</div>
+  </div>
+</div>
+
+<!-- Firebase compat SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<!-- Phaser 3 -->
+<script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+
+<script>
+'use strict';
+// ═══════════════════════════════════════════════════════════════
+//  ASSET BASE URL DETECTION
+//  st.components.v1.html() creates a srcdoc-iframe (origin=null).
+//  We detect the real Streamlit origin so Phaser can load sprites
+//  from /app/static/assets/… via absolute URLs.
+// ═══════════════════════════════════════════════════════════════
+const ASSET_BASE = (() => {
+  if(typeof window.__ASSET_BASE__==='string'&&window.__ASSET_BASE__)return window.__ASSET_BASE__;
+  try{const ao=window.location.ancestorOrigins;if(ao&&ao.length>0){const o=ao[ao.length-1];if(o&&o!=='null')return o+'/app/static';}}catch(e){}
+  try{const r=document.referrer;if(r&&!r.startsWith('about:')){const u=new URL(r);if(u.origin&&u.origin!=='null')return u.origin+'/app/static';}}catch(e){}
+  try{const p=window.parent.location.origin;if(p&&p!=='null')return p+'/app/static';}catch(e){}
+  try{const c=window.location.origin;if(c&&c!=='null')return c+'/app/static';}catch(e){}
+  return 'http://localhost:8501/app/static';
+})();
+
+// ═══════════════════════════════════════════════════════════════
+//  FIREBASE
+// ═══════════════════════════════════════════════════════════════
+const FB_CFG = {
+  apiKey:"AIzaSyAnHslB00R2CB0nxaIRLVOeEoFXDXzb4E8",
+  authDomain:"pumpii-cvaki.firebaseapp.com",
+  databaseURL:"https://pumpii-cvaki-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:"pumpii-cvaki",
+  storageBucket:"pumpii-cvaki.firebasestorage.app",
+  messagingSenderId:"414140775319",
+  appId:"1:414140775319:web:da5d9b40bd788d0c0ca2d2"
+};
+firebase.initializeApp(FB_CFG);
+const db = firebase.database();
+
+// ═══════════════════════════════════════════════════════════════
+//  CONSTANTS & GLOBALS
+// ═══════════════════════════════════════════════════════════════
+const TILE    = 48;
+const WORLD_W = 3264;
+const WORLD_H = 620;
+const GND_Y   = 504;
+
+const COLOR_HEX={pink:'#FF69B4',beige:'#DEB887',green:'#3CB371',purple:'#9370DB',yellow:'#FFD700'};
+
+const SPAWNS=[
+  {x:150,y:454},{x:300,y:454},{x:450,y:454},{x:600,y:454},{x:750,y:454},
+  {x:900,y:454},{x:1050,y:454},{x:1200,y:454},{x:1350,y:454},{x:1500,y:454},
+];
+
+// ── Multi-level data ─────────────────────────────────────────
+const LEVELS=[
+  { // ═══ LEVEL 1 : GRASSLANDS ═══
+    name:'🌿 Grasslands',
+    plats:[
+      [0,504,68,'ground'],
+      [192,404,4,'block'],[480,308,5,'block'],[864,404,4,'block'],
+      [1152,260,6,'block'],[1536,356,4,'block'],[1872,212,5,'block'],
+      [336,212,4,'cloud'],[1200,356,4,'cloud'],
+      [2208,308,5,'block'],[2544,404,4,'block'],
+      // ── Flag staircase ── (climb right→up to reach flag)
+      [2688,404,2,'block'],
+      [2832,308,2,'block'],
+      [2976,212,2,'block'],
+      [3072,116,2,'block'],
+      [3168,44,2,'block'],   // 🚩 FLAG platform
+    ],
+    enemies:[
+      [250,452,192,384],[550,356,480,672],[920,452,864,1008],
+      [1200,308,1152,1296],[1600,404,1536,1680],[2260,356,2208,2400],
+      [2600,452,2544,2736],
+    ],
+    coins:[
+      [120,454],[168,454],[400,454],[450,454],[700,454],[750,454],
+      [1000,454],[1050,454],[1300,454],[1350,454],[1600,454],[1650,454],
+      [1900,454],[1950,454],[2200,454],[2250,454],[2500,454],[2550,454],
+      [230,356],[278,356],[326,356],
+      [530,260],[578,260],[626,260],[674,260],
+      [900,356],[948,356],[996,356],
+      [1170,212],[1218,212],[1266,212],[1314,212],[1362,212],
+      [1560,308],[1608,308],[1656,308],
+      [1900,164],[1948,164],[1996,164],[2044,164],
+      [2260,260],[2308,260],[2356,260],[2404,260],
+      [2600,356],[2648,356],[2696,356],
+    ],
+    flagX:3192, flagY:44,
+  },
+  { // ═══ LEVEL 2 : SKY HEIGHTS ═══
+    name:'🌤️ Sky Heights',
+    plats:[
+      [0,504,68,'ground'],
+      [96,404,3,'block'],[288,308,3,'cloud'],[480,404,3,'block'],
+      [672,308,4,'block'],[960,212,5,'block'],[1200,356,3,'cloud'],
+      [1392,260,4,'block'],[1632,164,5,'block'],[1920,308,3,'block'],
+      [2112,212,4,'cloud'],[2352,356,3,'block'],
+      [2544,260,4,'block'],[2736,164,3,'block'],
+      // ── Flag staircase ──
+      [2880,308,2,'block'],
+      [2976,212,2,'block'],
+      [3072,116,2,'block'],
+      [3168,44,2,'block'],   // 🚩 FLAG platform
+    ],
+    enemies:[
+      [140,452,96,240],[530,308,480,624],[720,356,672,864],
+      [1010,260,960,1152],[1440,308,1392,1584],[1680,212,1632,1824],
+      [2000,356,1920,2064],[2400,308,2352,2544],[2600,308,2544,2736],
+      [2780,212,2736,2880],
+    ],
+    coins:[
+      [120,454],[216,454],[360,454],[504,454],[700,454],[800,454],
+      [1000,454],[1200,454],[1400,454],[1600,454],[1800,454],[2000,454],
+      [130,356],[200,308],[340,260],[390,260],
+      [530,356],[580,356],[730,260],[780,260],
+      [1010,164],[1058,164],[1106,164],
+      [1250,308],[1298,308],[1440,212],[1488,212],[1536,212],
+      [1684,116],[1732,116],[1780,116],[1828,116],
+      [2400,308],[2448,308],[2600,212],[2648,212],[2780,116],[2828,116],
+    ],
+    flagX:3192, flagY:44,
+  },
+  { // ═══ LEVEL 3 : FINAL RUSH ═══ (hardest)
+    name:'🏁 Final Rush',
+    plats:[
+      [0,504,68,'ground'],
+      [144,404,3,'block'],[336,308,3,'block'],[576,212,4,'block'],
+      [816,308,3,'cloud'],[1056,212,3,'block'],[1248,404,3,'block'],
+      [1440,308,3,'block'],[1680,164,5,'block'],[1968,260,3,'block'],
+      [2208,164,4,'cloud'],[2448,260,3,'block'],[2640,164,3,'block'],
+      [2784,260,3,'block'],
+      // ── Flag staircase – tightest gaps ──
+      [2928,356,2,'block'],
+      [3024,260,2,'block'],
+      [3072,164,2,'block'],
+      [3120,68,2,'block'],   // 🚩 FLAG platform
+    ],
+    enemies:[
+      [190,452,144,288],[382,356,336,528],[622,260,576,768],
+      [862,356,816,1008],[1102,260,1056,1200],[1294,452,1248,1440],
+      [1486,356,1440,1632],[1726,212,1680,1920],[2014,308,1968,2160],
+      [2254,212,2208,2400],[2494,308,2448,2592],[2686,212,2640,2832],
+    ],
+    coins:[
+      [100,454],[200,454],[300,454],[500,454],[700,454],[900,454],
+      [1100,454],[1300,454],[1500,454],[1700,454],[1900,454],[2100,454],
+      [190,356],[270,260],[430,260],[630,164],[680,164],
+      [870,260],[920,260],[1110,164],[1160,164],
+      [1300,356],[1490,260],[1730,116],[1780,116],[1828,116],
+      [2020,212],[2260,116],[2310,116],[2500,212],[2690,116],
+    ],
+    flagX:3144, flagY:68,
+  },
+];
+
+let currentLevelIdx=0;
+
+let myId    = 'p_'+Math.random().toString(36).substr(2,8);
+let myName  = '';
+let myColor = 'pink';
+let myRoom  = '';
+let isHost  = false;
+let roomMaxP= 10;
+let gameInst= null;
+
+let mobInput = {left:false,right:false,jump:false};
+let jumpFired = false;
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)||window.innerWidth<=900;
+
+// ── Live-tunable settings ──
+let JUMP_POWER = 680;
+let CAM_ZOOM   = 2.80;
+let GRAVITY    = 1475;
+
+function toggleSettings(){
+  const p=document.getElementById('settings-panel');
+  p.style.display=p.style.display==='block'?'none':'block';
+}
+function applyJump(v){
+  JUMP_POWER=parseInt(v);
+  document.getElementById('jump-val').textContent=v;
+}
+function applyZoom(v){
+  CAM_ZOOM=parseFloat(v);
+  document.getElementById('zoom-val').textContent=parseFloat(v).toFixed(2)+'×';
+  if(gameInst){
+    const scene=gameInst.scene.getScene('GameScene');
+    if(scene) scene.cameras.main.setZoom(CAM_ZOOM);
+  }
+}
+function applyGravity(v){
+  GRAVITY=parseInt(v);
+  document.getElementById('grav-val').textContent=v;
+  if(gameInst){
+    const scene=gameInst.scene.getScene('GameScene');
+    if(scene) scene.physics.world.gravity.y=GRAVITY;
+  }
+}
+function resetSettings(){
+  document.getElementById('jump-slider').value=720;
+  document.getElementById('zoom-slider').value=1.5;
+  document.getElementById('grav-slider').value=950;
+  applyJump(720); applyZoom(1.5); applyGravity(950);
+}
+// Close settings when clicking outside
+document.addEventListener('click',e=>{
+  const panel=document.getElementById('settings-panel');
+  const btn=document.getElementById('settings-btn');
+  if(panel.style.display==='block'&&!panel.contains(e.target)&&e.target!==btn){
+    panel.style.display='none';
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════
+//  LOADING SCREEN → LOBBY
+// ═══════════════════════════════════════════════════════════════
+function setLoad(pct,txt){
+  document.getElementById('load-bar').style.width=pct+'%';
+  document.getElementById('load-txt').textContent=txt;
+}
+setLoad(30,'Loading Firebase…');
+setTimeout(()=>{setLoad(70,'Loading Phaser…');
+  setTimeout(()=>{setLoad(100,'Ready!');
+    setTimeout(()=>{
+      document.getElementById('loading').style.display='none';
+      document.getElementById('lobby').style.display='flex';
+    },300);
+  },400);
+},400);
+
+// ═══════════════════════════════════════════════════════════════
+//  MOBILE CONTROLS
+// ═══════════════════════════════════════════════════════════════
+function mc(dir,on){
+  mobInput[dir]=on;
+  if(dir==='jump'&&on)jumpFired=true;
+  const el=document.getElementById('cb-'+dir);
+  if(el)el.classList.toggle('active',on);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LOBBY LOGIC
+// ═══════════════════════════════════════════════════════════════
+let selColor='pink';
+
+function switchTab(t){
+  document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',(t==='create'&&i===0)||(t==='join'&&i===1)));
+  document.getElementById('tc-create').classList.toggle('active',t==='create');
+  document.getElementById('tc-join').classList.toggle('active',t==='join');
+}
+
+document.querySelectorAll('.c-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.c-btn').forEach(x=>x.classList.remove('sel'));
+    b.classList.add('sel');
+    selColor=b.dataset.c;
+  });
+});
+
+function setErr(msg){document.getElementById('lerr').textContent=msg;}
+function getName(){return(document.getElementById('pname').value.trim()||'Player').substring(0,14);}
+
+function genCode(){
+  const C='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:6},()=>C[Math.floor(Math.random()*C.length)]).join('');
+}
+
+function genCoins(levelIdx){
+  const ld=LEVELS[levelIdx||0];
+  const types=['gold','gold','silver','silver','bronze'];
+  const out={};
+  ld.coins.forEach(([x,y],i)=>{
+    out['c'+i]={x,y,type:types[Math.floor(Math.random()*types.length)],collected:false};
+  });
+  return out;
+}
+
+async function createRoom(){
+  setErr('');
+  myName=getName(); myColor=selColor;
+  roomMaxP=parseInt(document.getElementById('max-p').value);
+  const code=genCode(); myRoom=code; isHost=true;
+
+  try{
+    await db.ref('rooms/'+code).set({
+      code,host:myId,maxPlayers:roomMaxP,status:'waiting',level:0,createdAt:Date.now()
+    });
+    await db.ref('rooms/'+code+'/players/'+myId).set(
+      mkPlayerData(myId,myName,myColor,SPAWNS[0].x,SPAWNS[0].y)
+    );
+    db.ref('rooms/'+code+'/players/'+myId).onDisconnect().remove();
+    openWaitRoom(code);
+  }catch(e){setErr('Error: '+e.message);}
+}
+
+async function joinRoom(){
+  setErr('');
+  myName=getName(); myColor=selColor;
+  const code=document.getElementById('jcode').value.trim().toUpperCase();
+  if(code.length!==6){setErr('Enter a 6-character code.');return;}
+
+  try{
+    const snap=await db.ref('rooms/'+code).once('value');
+    if(!snap.exists()){setErr('Room not found!');return;}
+    const r=snap.val();
+    if(r.status==='playing'){setErr('Game already started!');return;}
+    const cnt=Object.keys(r.players||{}).length;
+    if(cnt>=r.maxPlayers){setErr('Room is full!');return;}
+
+    myRoom=code; isHost=false; roomMaxP=r.maxPlayers;
+    const sp=SPAWNS[cnt%SPAWNS.length];
+    await db.ref('rooms/'+code+'/players/'+myId).set(
+      mkPlayerData(myId,myName,myColor,sp.x,sp.y)
+    );
+    db.ref('rooms/'+code+'/players/'+myId).onDisconnect().remove();
+    openWaitRoom(code);
+  }catch(e){setErr('Error: '+e.message);}
+}
+
+function mkPlayerData(id,name,color,x,y){
+  return{id,name,color,x,y,vx:0,vy:0,state:'idle',score:0,lives:3,facingLeft:false,alive:true,lastPing:Date.now()};
+}
+
+function openWaitRoom(code){
+  document.getElementById('lobby').style.display='none';
+  document.getElementById('room-lobby').style.display='flex';
+  document.getElementById('rcode-display').textContent=code;
+  document.getElementById('p-max').textContent=roomMaxP;
+  document.getElementById('host-zone').style.display=isHost?'block':'none';
+  document.getElementById('guest-zone').style.display=isHost?'none':'block';
+  watchRoom(code);
+}
+
+function watchRoom(code){
+  db.ref('rooms/'+code+'/players').on('value',snap=>{
+    const players=snap.val()||{};
+    const list=Object.values(players);
+    document.getElementById('p-count').textContent=list.length;
+    const plistEl=document.getElementById('plist');
+    plistEl.innerHTML=list.map(p=>`
+      <div class="prow">
+        <div class="pdot" style="background:${COLOR_HEX[p.color]||'#fff'}"></div>
+        <span>${p.name||'Player'}${p.id===myId?' (You)':''}</span>
+      </div>`).join('');
+    if(isHost){
+      document.getElementById('start-hint').textContent=
+        list.length>=1?`${list.length} player${list.length>1?'s':''} ready!`:'Waiting for players…';
+    }
+  });
+  db.ref('rooms/'+code+'/status').on('value',snap=>{
+    if(snap.val()==='playing') launchGame();
+  });
+}
+
+async function hostStart(){
+  if(!isHost) return;
+  await db.ref('rooms/'+myRoom+'/coins').set(genCoins());
+  await db.ref('rooms/'+myRoom+'/status').set('playing');
+}
+
+async function leaveRoom(){
+  if(myRoom){
+    await db.ref('rooms/'+myRoom+'/players/'+myId).remove();
+    db.ref('rooms/'+myRoom+'/players').off();
+    db.ref('rooms/'+myRoom+'/status').off();
+  }
+  myRoom=''; isHost=false;
+  document.getElementById('room-lobby').style.display='none';
+  document.getElementById('lobby').style.display='flex';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LAUNCH PHASER
+// ═══════════════════════════════════════════════════════════════
+function launchGame(){
+  document.getElementById('room-lobby').style.display='none';
+  document.getElementById('hud').style.display='block';
+  document.getElementById('settings-btn').style.display='flex';
+  if(isMobile) document.getElementById('mctrl').style.display='flex';
+
+  const cfg={
+    type:Phaser.AUTO,
+    parent:'game-container',
+    backgroundColor:'#5CA8E0',
+    physics:{default:'arcade',arcade:{gravity:{y:GRAVITY},debug:false}},
+    scene:[GameScene],
+    scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH}
+  };
+  gameInst=new Phaser.Game(cfg);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  GAME SCENE
+// ═══════════════════════════════════════════════════════════════
+class GameScene extends Phaser.Scene{
+  constructor(){
+    super('GameScene');
+    this.player=null;
+    this.playerLabel=null;
+    this.others={};
+    this.coinsMap={};
+    this.coinsGrp=null;
+    this.platGrp=null;
+    this.enemyGrp=null;
+    this.flagZone=null;
+    this.flagGfx=null;
+    this.flagTouched=false;
+    this.levelLabel=null;
+    this.keys=null;
+    this.wasd=null;
+    this.myScore=0;
+    this.myLives=3;
+    this.invincible=false;
+    this.jumping=false;
+    this.walkFrame=0;
+    this.walkTimer=0;
+    this.pState='idle';
+    this.syncTimer=0;
+    this.isOver=false;
+    this.allPlayersCache={};
+  }
+
+  preload(){
+    const A = ASSET_BASE + '/assets'; // e.g. http://localhost:8501/app/static/assets
+    // ── background ──
+    this.load.image('bg', A+'/Sprites/Backgrounds/background_color_hills.png');
+
+    // ── terrain tiles ──
+    this.load.image('t_block_top',       A+'/Sprites/Tiles/terrain_grass_block_top.png');
+    this.load.image('t_block_top_left',  A+'/Sprites/Tiles/terrain_grass_block_top_left.png');
+    this.load.image('t_block_top_right', A+'/Sprites/Tiles/terrain_grass_block_top_right.png');
+    this.load.image('t_block_center',    A+'/Sprites/Tiles/terrain_grass_block_center.png');
+    this.load.image('t_block_left',      A+'/Sprites/Tiles/terrain_grass_block_left.png');
+    this.load.image('t_block_right',     A+'/Sprites/Tiles/terrain_grass_block_right.png');
+    this.load.image('t_block_bottom',    A+'/Sprites/Tiles/terrain_grass_block_bottom.png');
+    this.load.image('t_horiz_l', A+'/Sprites/Tiles/terrain_grass_horizontal_left.png');
+    this.load.image('t_horiz_m', A+'/Sprites/Tiles/terrain_grass_horizontal_middle.png');
+    this.load.image('t_horiz_r', A+'/Sprites/Tiles/terrain_grass_horizontal_right.png');
+    this.load.image('t_cloud',   A+'/Sprites/Tiles/terrain_grass_cloud.png');
+    this.load.image('t_cloud_l', A+'/Sprites/Tiles/terrain_grass_cloud_left.png');
+    this.load.image('t_cloud_m', A+'/Sprites/Tiles/terrain_grass_cloud_middle.png');
+    this.load.image('t_cloud_r', A+'/Sprites/Tiles/terrain_grass_cloud_right.png');
+
+    // ── coins ──
+    ['coin_gold','coin_silver','coin_bronze'].forEach(k=>{
+      this.load.image(k, A+'/Sprites/Tiles/'+k+'.png');
+    });
+
+    // ── characters (5 colors × 6 states) ──
+    const colors=['pink','beige','green','purple','yellow'];
+    const states=['idle','walk_a','walk_b','jump','hit','duck'];
+    colors.forEach(c=>states.forEach(s=>{
+      this.load.image(`chr_${c}_${s}`, A+`/Sprites/Characters/character_${c}_${s}.png`);
+    }));
+
+    // ── enemies ──
+    this.load.image('slime_a',    A+'/Sprites/Enemies/slime_normal_walk_a.png');
+    this.load.image('slime_b',    A+'/Sprites/Enemies/slime_normal_walk_b.png');
+    this.load.image('slime_flat', A+'/Sprites/Enemies/slime_normal_flat.png');
+    this.load.image('ladybug_a',  A+'/Sprites/Enemies/ladybug_walk_a.png');
+    this.load.image('ladybug_b',  A+'/Sprites/Enemies/ladybug_walk_b.png');
+
+    // progress
+    this.load.on('progress',v=>{setLoad(Math.round(v*100),'Loading assets…');});
+    this.load.on('complete',()=>{setLoad(100,'Done!');});
+  }
+
+  create(){
+    const cam=this.cameras.main;
+    this.physics.world.setBounds(0,0,WORLD_W,WORLD_H);
+
+    // ── SKY BACKGROUND ──
+    const bg=this.textures.get('bg').getSourceImage();
+    const bgW=bg.naturalWidth||bg.width||800;
+    for(let x=0;x<WORLD_W;x+=bgW){
+      this.add.image(x+bgW/2,WORLD_H/2,'bg').setDepth(-10);
+    }
+    const sky=this.add.graphics().setDepth(-9);
+    sky.fillGradientStyle(0x87CEEB,0x87CEEB,0x4A9FCB,0x4A9FCB,0.65);
+    sky.fillRect(0,0,WORLD_W,WORLD_H);
+
+    // ── PLATFORMS ──
+    this.platGrp=this.physics.add.staticGroup();
+    this.buildPlatforms();
+
+    // ── FLAG ──
+    this.buildFlag();
+
+    // ── COINS ──
+    this.coinsGrp=this.physics.add.staticGroup();
+
+    // ── ENEMIES ──
+    this.enemyGrp=this.physics.add.group();
+    this.buildEnemies();
+
+    // ── MY PLAYER ──
+    const si=this.getSpawnIndex();
+    const sp=SPAWNS[si%SPAWNS.length];
+    this.player=this.physics.add.sprite(sp.x,sp.y,`chr_${myColor}_idle`);
+    this.player.setScale(0.5);
+    this.player.setCollideWorldBounds(true);
+    this.player.body.setMaxVelocityY(1300);
+    this.player.body.setSize(60,104);
+    this.player.body.setOffset(34,14);
+    this.player.setDepth(10);
+
+    this.playerLabel=this.add.text(sp.x,sp.y-40,myName,{
+      fontSize:'12px',color:'#fff',stroke:'#000',strokeThickness:3
+    }).setOrigin(0.5).setDepth(11);
+
+    // ── LEVEL BANNER (top-center, camera-fixed) ──
+    this.levelLabel=this.add.text(0,0,LEVELS[currentLevelIdx].name,{
+      fontSize:'15px',color:'#FFD700',stroke:'#000',strokeThickness:4,fontStyle:'bold'
+    }).setOrigin(0.5,0).setDepth(50).setScrollFactor(0);
+    this.updateLevelLabel();
+
+    // ── COLLIDERS ──
+    this.physics.add.collider(this.player,this.platGrp);
+    this.physics.add.collider(this.enemyGrp,this.platGrp);
+    this.physics.add.overlap(this.player,this.coinsGrp,(pl,coin)=>this.onCoin(coin));
+    this.physics.add.overlap(this.player,this.enemyGrp,(pl,en)=>this.onEnemy(en));
+    this.physics.add.overlap(this.player,this.flagZone,()=>this.onFlag());
+
+    // ── CAMERA ──
+    cam.setZoom(CAM_ZOOM);
+    cam.setBounds(0,0,WORLD_W,WORLD_H);
+    cam.startFollow(this.player,true,0.1,0.1);
+    cam.setDeadzone(120,60);
+
+    // ── KEYBOARD ──
+    this.keys=this.input.keyboard.createCursorKeys();
+    this.wasd=this.input.keyboard.addKeys({
+      up:Phaser.Input.Keyboard.KeyCodes.W,
+      left:Phaser.Input.Keyboard.KeyCodes.A,
+      right:Phaser.Input.Keyboard.KeyCodes.D,
+      space:Phaser.Input.Keyboard.KeyCodes.SPACE
+    });
+
+    // ── FIREBASE LISTENERS ──
+    this.listenPlayers();
+    this.listenCoins();
+    this.listenWinner();
+    this.listenLevel();
+
+    this.doSync();
+    document.getElementById('loading').style.display='none';
+    this.scale.on('resize',gs=>{
+      cam.setSize(gs.width,gs.height);
+      this.updateLevelLabel();
+    });
+  }
+
+  updateLevelLabel(){
+    if(!this.levelLabel) return;
+    const gs=this.scale.gameSize;
+    this.levelLabel.setPosition(gs.width/2, 8);
+    this.levelLabel.setText(
+      `${LEVELS[currentLevelIdx].name}  (${currentLevelIdx+1}/${LEVELS.length})`
+    );
+  }
+
+  // ── LEVEL BUILDER ──
+  buildPlatforms(){
+    const ld=LEVELS[currentLevelIdx];
+    ld.plats.forEach(([lx,ly,w,type])=>{
+      const physH=(type==='ground')?96:24;
+      const rect=this.add.rectangle(lx+w*TILE/2,ly+physH/2,w*TILE,physH,0x000000,0);
+      this.physics.add.existing(rect,true);
+      this.platGrp.add(rect);
+
+      for(let i=0;i<w;i++){
+        const tx=lx+i*TILE+TILE/2;
+        if(type==='ground'){
+          const top=i===0?'t_block_top_left':(i===w-1?'t_block_top_right':'t_block_top');
+          this.add.image(tx,ly+TILE/2,top).setScale(0.75).setDepth(2);
+          const mid=i===0?'t_block_left':(i===w-1?'t_block_right':'t_block_center');
+          this.add.image(tx,ly+TILE*1.5,mid).setScale(0.75).setDepth(2);
+        }else if(type==='block'){
+          const k=i===0?'t_horiz_l':(i===w-1?'t_horiz_r':'t_horiz_m');
+          this.add.image(tx,ly+TILE/2,k).setScale(0.75).setDepth(2);
+        }else if(type==='cloud'){
+          const k=i===0?'t_cloud_l':(i===w-1?'t_cloud_r':(i===Math.floor(w/2)?'t_cloud':'t_cloud_m'));
+          this.add.image(tx,ly+TILE/2,k).setScale(0.75).setDepth(2);
+        }
+      }
+    });
+  }
+
+  buildFlag(){
+    const ld=LEVELS[currentLevelIdx];
+    const px=ld.flagX, py=ld.flagY;
+
+    // ── Draw flag visuals ──
+    this.flagGfx=this.add.graphics().setDepth(8);
+    // pole base ball
+    this.flagGfx.fillStyle(0xcccccc,1);
+    this.flagGfx.fillCircle(px,py+78,6);
+    // pole
+    this.flagGfx.fillStyle(0xbbbbbb,1);
+    this.flagGfx.fillRect(px-3,py,6,80);
+    // flag cloth (animated separately via tween)
+    this.flagGfx.fillStyle(0xff2222,1);
+    this.flagGfx.fillTriangle(px+3,py+4, px+38,py+16, px+3,py+30);
+    this.flagGfx.fillStyle(0xffcc00,1);
+    this.flagGfx.fillTriangle(px+3,py+4, px+38,py+16, px+3,py+30);
+
+    // redraw flag as two-color for depth
+    this.flagGfx.clear();
+    this.flagGfx.fillStyle(0xcccccc,1);
+    this.flagGfx.fillCircle(px,py+78,6);
+    this.flagGfx.fillStyle(0xdddddd,1);
+    this.flagGfx.fillRect(px-3,py,6,80);
+    this.flagGfx.fillStyle(0xff3300,1);
+    this.flagGfx.fillTriangle(px+3,py+6, px+40,py+18, px+3,py+34);
+
+    // GOAL label above flag
+    const lbl=this.add.text(px,py-18,'🏁 GOAL',{
+      fontSize:'13px',color:'#FFD700',stroke:'#111',strokeThickness:4,fontStyle:'bold'
+    }).setOrigin(0.5,1).setDepth(9);
+
+    // pulsing glow zone
+    const glow=this.add.circle(px,py+20,36,0xffff00,0.18).setDepth(7);
+    this.tweens.add({targets:glow,scaleX:1.35,scaleY:1.35,alpha:0.05,
+      duration:700,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+    // label bob
+    this.tweens.add({targets:lbl,y:py-24,duration:600,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+
+    // ── Physics zone ──
+    const zone=this.add.zone(px,py+40,60,80);
+    this.physics.world.enable(zone,Phaser.Physics.Arcade.STATIC_BODY);
+    this.flagZone=zone;
+  }
+
+  buildEnemies(){
+    const eTypes=[
+      {a:'slime_a',b:'slime_b',speed:65},
+      {a:'ladybug_a',b:'ladybug_b',speed:80},
+    ];
+    LEVELS[currentLevelIdx].enemies.forEach(([x,y,left,right],i)=>{
+      const et=eTypes[i%eTypes.length];
+      const en=this.physics.add.sprite(x,y,et.a);
+      en.setScale(0.5);
+      en.setDepth(5);
+      en.setData({left,right,dir:1,at:0,fa:et.a,fb:et.b,speed:et.speed,dead:false,frame:0});
+      en.body.setGravityY(0);
+      en.body.setVelocityX(et.speed);
+      en.body.setSize(48,40);
+      en.body.setOffset(8,12);
+      this.enemyGrp.add(en);
+    });
+  }
+
+  listenCoins(){
+    db.ref('rooms/'+myRoom+'/coins').on('value',snap=>{
+      const data=snap.val()||{};
+      Object.entries(data).forEach(([id,c])=>{
+        if(c.collected){
+          if(this.coinsMap[id]){this.coinsMap[id].destroy();delete this.coinsMap[id];}
+          return;
+        }
+        if(!this.coinsMap[id]){
+          const sp=this.coinsGrp.create(c.x,c.y,'coin_'+c.type);
+          sp.setScale(0.5).setDepth(4).refreshBody();
+          sp.setData('id',id).setData('type',c.type);
+          this.coinsMap[id]=sp;
+          this.tweens.add({targets:sp,y:c.y-10,duration:500+Math.random()*300,
+            yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+        }
+      });
+    });
+  }
+
+  listenPlayers(){
+    db.ref('rooms/'+myRoom+'/players').on('value',snap=>{
+      const all=snap.val()||{};
+      this.allPlayersCache=all;
+      this.updateHUD(all);
+
+      Object.entries(all).forEach(([id,d])=>{
+        if(id===myId) return;
+        if(!this.others[id]){
+          const sp=this.physics.add.sprite(d.x,d.y,`chr_${d.color}_idle`);
+          sp.setScale(0.5).setDepth(9);
+          sp.body.setAllowGravity(false);
+          const lb=this.add.text(d.x,d.y-40,d.name||'?',{
+            fontSize:'12px',color:'#fff',stroke:'#000',strokeThickness:3
+          }).setOrigin(0.5).setDepth(11);
+          this.others[id]={sp,lb,color:d.color};
+        }else{
+          const o=this.others[id];
+          // Smooth lerp
+          o.sp.x+=(d.x-o.sp.x)*0.35;
+          o.sp.y+=(d.y-o.sp.y)*0.35;
+          o.lb.setPosition(o.sp.x,o.sp.y-40);
+          const tk=`chr_${d.color}_${d.state||'idle'}`;
+          if(this.textures.exists(tk)) o.sp.setTexture(tk);
+          o.sp.setFlipX(!!d.facingLeft);
+        }
+      });
+
+      // Remove departed players
+      Object.keys(this.others).forEach(id=>{
+        if(!all[id]){
+          this.others[id].sp.destroy();
+          this.others[id].lb.destroy();
+          delete this.others[id];
+        }
+      });
+    });
+  }
+
+  listenWinner(){
+    db.ref('rooms/'+myRoom+'/winner').on('value',snap=>{
+      if(snap.val()&&!this.isOver){
+        this.isOver=true;
+        db.ref('rooms/'+myRoom).once('value',rs=>{
+          const r=rs.val()||{};
+          showWin(r.winnerName||'Someone',r.players||{},true);
+        });
+      }
+    });
+  }
+
+  listenLevel(){
+    db.ref('rooms/'+myRoom+'/level').on('value',snap=>{
+      const lv=snap.val();
+      if(lv!==null&&lv!==undefined&&lv!==currentLevelIdx){
+        this.transitionToLevel(lv);
+      }
+    });
+  }
+
+  onFlag(){
+    if(this.flagTouched||this.isOver) return;
+    this.flagTouched=true;
+    this.floatText(this.player.x,this.player.y-70,'🏁 LEVEL CLEAR!','#FFD700');
+
+    const nextIdx=currentLevelIdx+1;
+    if(nextIdx>=LEVELS.length){
+      // All levels complete — this player wins!
+      this.isOver=true;
+      db.ref('rooms/'+myRoom).update({winner:myId,winnerName:myName,status:'finished'});
+    }else{
+      // Advance everyone to next level
+      db.ref('rooms/'+myRoom).update({level:nextIdx,coins:genCoins(nextIdx)});
+    }
+  }
+
+  transitionToLevel(idx){
+    currentLevelIdx=idx;
+    this.flagTouched=false;
+
+    // ── Destroy old world objects ──
+    this.platGrp.clear(true,true);
+    this.enemyGrp.clear(true,true);
+    this.coinsGrp.clear(true,true);
+    if(this.flagGfx){this.flagGfx.destroy();this.flagGfx=null;}
+    if(this.flagZone){this.flagZone.destroy();this.flagZone=null;}
+    // Destroy old tile images (depth 2) + flag visuals (depth 7-9)
+    this.children.list
+      .filter(c=>c.depth>=2&&c.depth<=9&&c!==this.player&&c!==this.playerLabel)
+      .forEach(c=>c.destroy());
+
+    // ── Build new world ──
+    this.buildPlatforms();
+    this.buildFlag();
+    this.buildEnemies();
+
+    // Re-register flag overlap
+    this.physics.add.overlap(this.player,this.flagZone,()=>this.onFlag());
+    this.physics.add.collider(this.player,this.platGrp);
+    this.physics.add.collider(this.enemyGrp,this.platGrp);
+
+    // ── Respawn players ──
+    const sp=SPAWNS[0];
+    this.player.setPosition(sp.x,sp.y);
+    this.player.body.setVelocity(0,0);
+    this.myLives=3;
+
+    // ── Flash transition ──
+    this.cameras.main.flash(500,255,255,255);
+    this.cameras.main.resetBounds();
+    this.cameras.main.setBounds(0,0,WORLD_W,WORLD_H);
+
+    this.updateLevelLabel();
+
+    // Announce to other players
+    db.ref('rooms/'+myRoom+'/players/'+myId).update({
+      x:sp.x,y:sp.y,lives:3,score:this.myScore
+    });
+
+    this.floatText(sp.x,sp.y-80,
+      `LEVEL ${idx+1}: ${LEVELS[idx].name}`,'#FFD700');
+  }
+
+  onCoin(coin){
+    const id=coin.getData('id');
+    if(!id||this.coinsMap[id+'_taken']) return;
+    this.coinsMap[id+'_taken']=true;
+
+    db.ref('rooms/'+myRoom+'/coins/'+id).update({collected:true,by:myId});
+    const pts=coin.getData('type')==='gold'?3:(coin.getData('type')==='silver'?2:1);
+    this.myScore+=pts;
+    db.ref('rooms/'+myRoom+'/players/'+myId).update({score:this.myScore});
+
+    this.floatText(coin.x,coin.y,'+'+pts,pts===3?'#ffd700':pts===2?'#ccc':'#cd7f32');
+    this.updateHUD(this.allPlayersCache);
+  }
+
+  onEnemy(en){
+    if(en.getData('dead')||this.invincible) return;
+    const stomping=this.player.body.velocity.y>50&&this.player.y<en.y-8;
+    if(stomping){
+      en.setData('dead',true);
+      en.setTexture('slime_flat');
+      en.body.setVelocity(0,0);
+      this.player.body.setVelocityY(-500);
+      this.myScore+=2;
+      db.ref('rooms/'+myRoom+'/players/'+myId).update({score:this.myScore});
+      this.floatText(en.x,en.y-20,'+2 STOMP!','#ff6b6b');
+      this.time.delayedCall(1200,()=>{if(en.active)en.destroy();});
+      this.updateHUD(this.allPlayersCache);
+    }else{
+      this.hitPlayer();
+    }
+  }
+
+  hitPlayer(){
+    if(this.invincible) return;
+    this.invincible=true;
+    this.myLives=Math.max(0,this.myLives-1);
+    this.player.body.setVelocityY(-280);
+    db.ref('rooms/'+myRoom+'/players/'+myId).update({lives:this.myLives});
+
+    let tick=0;
+    this.time.addEvent({delay:100,repeat:11,callback:()=>{
+      this.player.setAlpha(this.player.alpha<0.5?1:0.3);
+      if(++tick>=12){this.player.setAlpha(1);this.invincible=false;}
+    }});
+
+    if(this.myLives<=0){
+      this.time.delayedCall(800,()=>{
+        this.myLives=3;
+        this.player.setPosition(SPAWNS[0].x,SPAWNS[0].y);
+        this.player.body.setVelocity(0,0);
+        db.ref('rooms/'+myRoom+'/players/'+myId).update({lives:3,x:SPAWNS[0].x,y:SPAWNS[0].y});
+      });
+    }
+    this.updateHUD(this.allPlayersCache);
+  }
+
+  floatText(x,y,msg,color){
+    const t=this.add.text(x,y,msg,{
+      fontSize:'18px',color:color||'#fff',stroke:'#000',strokeThickness:3,fontStyle:'bold'
+    }).setOrigin(0.5).setDepth(30);
+    this.tweens.add({targets:t,y:y-50,alpha:0,duration:900,
+      onComplete:()=>t.destroy()});
+  }
+
+  updateHUD(all){
+    const el=document.getElementById('hud-inner');
+    if(!el) return;
+    const players=Object.values(all).sort((a,b)=>(b.score||0)-(a.score||0));
+    el.innerHTML=players.map(p=>`
+      <div class="hitem${p.id===myId?' me':''}">
+        <span style="color:${COLOR_HEX[p.color]||'#fff'};font-size:15px;">●</span>
+        <span>${p.name||'?'}</span>
+        <span class="hscore">${p.score||0}pts</span>
+        <span class="hlives">❤${p.lives||3}</span>
+      </div>`).join('');
+  }
+
+  getSpawnIndex(){
+    let h=0; for(const c of myId) h+=c.charCodeAt(0);
+    return h%10;
+  }
+
+  doSync(){
+    if(!myRoom||!this.player) return;
+    db.ref('rooms/'+myRoom+'/players/'+myId).update({
+      x:Math.round(this.player.x),y:Math.round(this.player.y),
+      vx:Math.round(this.player.body.velocity.x),
+      vy:Math.round(this.player.body.velocity.y),
+      state:this.pState,facingLeft:this.player.flipX,
+      score:this.myScore,lives:this.myLives,lastPing:Date.now()
+    });
+  }
+
+  update(time,delta){
+    if(this.isOver) return;
+
+    const L=this.keys.left.isDown||this.wasd.left.isDown||mobInput.left;
+    const R=this.keys.right.isDown||this.wasd.right.isDown||mobInput.right;
+    const J=this.keys.up.isDown||this.wasd.up.isDown||this.wasd.space.isDown||mobInput.jump||jumpFired;
+    jumpFired=false;
+
+    const grnd=this.player.body.blocked.down;
+
+    // Horizontal
+    if(L){this.player.body.setVelocityX(-230);this.player.setFlipX(true);}
+    else if(R){this.player.body.setVelocityX(230);this.player.setFlipX(false);}
+    else{this.player.body.setVelocityX(this.player.body.velocity.x*0.72);}
+
+    // Jump
+    if(J&&grnd&&!this.jumping){
+      this.player.body.setVelocityY(-JUMP_POWER);
+      this.jumping=true;
+    }
+    if(grnd) this.jumping=false;
+
+    // Fall off world
+    if(this.player.y>WORLD_H+60){
+      this.player.setPosition(SPAWNS[0].x,SPAWNS[0].y-30);
+      this.player.body.setVelocity(0,0);
+      this.hitPlayer();
+    }
+
+    // ── ANIMATION ──
+    let ns;
+    if(!grnd) ns='jump';
+    else if(Math.abs(this.player.body.velocity.x)>25){
+      this.walkTimer+=delta;
+      if(this.walkTimer>140){this.walkTimer=0;this.walkFrame^=1;}
+      ns=this.walkFrame?'walk_b':'walk_a';
+    } else ns='idle';
+
+    if(ns!==this.pState){
+      this.pState=ns;
+      const k=`chr_${myColor}_${ns}`;
+      if(this.textures.exists(k)) this.player.setTexture(k);
+    }
+    this.playerLabel.setPosition(this.player.x,this.player.y-42);
+
+    // ── ENEMIES ──
+    this.enemyGrp.children.each(en=>{
+      if(en.getData('dead')) return;
+      let dir=en.getData('dir');
+      if(en.x<=en.getData('left')){dir=1;en.setData('dir',1);}
+      if(en.x>=en.getData('right')){dir=-1;en.setData('dir',-1);}
+      const spd=en.getData('speed')||65;
+      en.body.setVelocityX(dir*spd);
+      en.setFlipX(dir<0);
+      let at=en.getData('at')+delta;
+      if(at>380){
+        at=0;
+        const f=(en.getData('frame')^1);
+        en.setData('frame',f);
+        en.setTexture(f?en.getData('fb'):en.getData('fa'));
+      }
+      en.setData('at',at);
+    });
+
+    // ── SYNC ──
+    this.syncTimer+=delta;
+    if(this.syncTimer>55){this.syncTimer=0;this.doSync();}
+  }
+
+  shutdown(){
+    if(myRoom){
+      db.ref('rooms/'+myRoom+'/players').off();
+      db.ref('rooms/'+myRoom+'/coins').off();
+      db.ref('rooms/'+myRoom+'/winner').off();
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  WIN SCREEN
+// ═══════════════════════════════════════════════════════════════
+function showWin(winnerName,allPlayers,isFlag){
+  document.getElementById('hud').style.display='none';
+  document.getElementById('mctrl').style.display='none';
+  document.getElementById('settings-btn').style.display='none';
+  document.getElementById('settings-panel').style.display='none';
+
+  const isMe=winnerName===myName;
+  document.getElementById('win-title').textContent=isMe?'🏆 YOU WIN!':'🏆 '+winnerName+' Wins!';
+  document.getElementById('win-sub').textContent=isMe
+    ?'You reached the final flag first!'
+    :'Better luck next time!';
+
+  const medals=['🥇','🥈','🥉'];
+  const sorted=Object.values(allPlayers).sort((a,b)=>(b.score||0)-(a.score||0));
+  document.getElementById('final-scores').innerHTML=sorted.map((p,i)=>`
+    <div class="score-row">
+      ${medals[i]||'  '+(i+1)+'.'}
+      <span style="color:${COLOR_HEX[p.color]||'#fff'}">●</span>
+      ${p.name||'Player'}: <strong style="color:#ffd700">${p.score||0} pts</strong>
+    </div>`).join('');
+
+  document.getElementById('win-screen').style.display='flex';
+}
+
+async function backToLobby(){
+  document.getElementById('win-screen').style.display='none';
+  if(gameInst){gameInst.destroy(true);gameInst=null;}
+  if(myRoom){
+    await db.ref('rooms/'+myRoom+'/players/'+myId).remove();
+    myRoom=''; isHost=false;
+  }
+  currentLevelIdx=0;
+  document.getElementById('lobby').style.display='flex';
+}
+</script>
+</body>
+</html>
